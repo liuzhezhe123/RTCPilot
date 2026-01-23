@@ -40,7 +40,7 @@ namespace cpp_streamer
         session_.reset(new TcpSession(loop, handle, this, key_file, cert_file, logger));
         Init();
 
-		remote_addr_ = session_->GetRemoteEndpoint();
+        remote_addr_ = session_->GetRemoteEndpoint();
         LogInfof(logger, "WebSocketSession construct(ssl), remote addr:%s", session_->GetRemoteEndpoint().c_str());
     }
 
