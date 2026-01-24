@@ -100,7 +100,15 @@ int WebRtcSession::HandleStunPacket(StunPacket* stun_pkt, UdpTransportI* trans_c
     trans_cb_ = trans_cb;
     remote_addr_ = addr;
     alive_ms_ = now_millisec();
-    return ice_server_->HandleStunPacket(stun_pkt, addr);
+    int ret = ice_server_->HandleStunPacket(stun_pkt, addr);
+    if (ret != 0) {
+        LogErrorf(logger_, "WebRtcSession HandleStunPacket failed, room_id:%s, user_id:%s, session_id:%s, ret:%d",
+            room_id_.c_str(), user_id_.c_str(), session_id_.c_str(), ret);
+        return ret;
+    }
+    dtls_session_->SetRemoteAddress(addr);
+    dtls_session_->SetIceConnected(true);
+    return 0;
 }
 
 int WebRtcSession::HandleNoneStunPacket(const uint8_t* data, size_t len, UdpTransportI* trans_cb, UdpTuple addr) {
@@ -117,7 +125,7 @@ int WebRtcSession::HandleNoneStunPacket(const uint8_t* data, size_t len, UdpTran
             room_id_.c_str(), user_id_.c_str(), session_id_.c_str(), len);
         return HandleRtpPacket(data, len, addr);
     } else if (DtlsSession::IsDtlsData(data, len)) {
-        LogDebugf(logger_, "Handle DTLS packet, room_id:%s, user_id:%s, session_id:%s, len:%zu",
+        LogInfof(logger_, "Handle DTLS packet, room_id:%s, user_id:%s, session_id:%s, len:%zu",
             room_id_.c_str(), user_id_.c_str(), session_id_.c_str(), len);
         dtls_session_->OnHandleDtlsData(data, len, addr);
     } else {

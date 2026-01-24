@@ -241,6 +241,7 @@ class WsProtooSession:
                         await self.msu_manager.handle_join_room(roomId, userId, userName)
                 except Exception as e:
                     self.log.exception("Failed to handle MSU join for room %s: %s", roomId, e)
+                self.log.info("join response data: %s", json.dumps(data))
                 await self.send_response_ok(req_id, data)
             else:
                 await self.send_response_error(req_id, 404, f"Unknown method: {method}")

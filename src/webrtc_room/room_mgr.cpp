@@ -194,18 +194,39 @@ std::shared_ptr<Room> RoomMgr::GetOrCreateRoom(const std::string& room_id) {
     return new_room;
 }
 
+std::shared_ptr<Room> RoomMgr::GetRoom(const std::string& room_id) {
+    auto it = rooms_.find(room_id);
+    if (it != rooms_.end()) {
+        return it->second;
+    }
+    return nullptr;
+}
+void RoomMgr::RemoveRoom(const std::string& room_id) {
+    auto it = rooms_.find(room_id);
+    if (it != rooms_.end()) {
+        it->second->Close();
+        rooms_.erase(it);
+        LogInfof(logger_, "RoomMgr removed room, room_id:%s", room_id.c_str());
+    } else {
+        LogWarnf(logger_, "RoomMgr cannot find room to remove, room_id:%s", room_id.c_str());
+    }
+}
 int RoomMgr::HandleJoinRequest(int id, json& j, ProtooResponseI* resp_cb) {
     std::vector<std::shared_ptr<RtcUser>> users;
     try {
         std::string roomId = j["roomId"];
         std::string userId = j["userId"];
         std::string userName = j["userName"];
+        bool audience = false;
+        if (j.contains("audience")) {
+            audience = j["audience"];
+        }
 
-        LogInfof(logger_, "join request roomId:%s, userId:%s, userName:%s",
-            roomId.c_str(), userId.c_str(), userName.c_str());
+        LogInfof(logger_, "join request roomId:%s, userId:%s, userName:%s, audience:%s",
+            roomId.c_str(), userId.c_str(), userName.c_str(), BOOL2STRING(audience));
 		resp_cb->SetUserInfo(roomId, userId);
         auto room_ptr = GetOrCreateRoom(roomId);
-        int ret = room_ptr->UserJoin(userId, userName, id, resp_cb);
+        int ret = room_ptr->UserJoin(userId, userName, audience,id, resp_cb);
         if (ret < 0) {
             json resp_json = json::object();
             resp_json["message"] = "user join failed";

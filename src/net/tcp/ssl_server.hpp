@@ -98,6 +98,7 @@ public:
         }
 
         if (tls_state_ == TLS_SERVER_KEY_EXCHANGE_DONE) {
+            LogInfof(logger_, "SslServer handshake done, start to recv data, len:%zu", len);
             tls_state_ = TLS_SERVER_DATA_RECV_STATE;
             return 0;
         }
@@ -108,7 +109,7 @@ public:
             return -1;
         }
         
-        //while(true) {
+        while(true) {
             r0 = SSL_read(ssl_, plaintext_data_, (int)plaintext_data_len_);
             int r1 = SSL_get_error(ssl_, r0);
             size_t r2 = BIO_ctrl_pending(bio_in_);
@@ -122,7 +123,10 @@ public:
                         r0, r1, r2, r3);
                 //break;
             }
-        //}
+            if (r2 <= 0) {
+                break;
+            }
+        }
         return 0;
     }
 

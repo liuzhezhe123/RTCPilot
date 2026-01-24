@@ -103,6 +103,29 @@ public:
     uint16_t    port_ = 8443;
 };
 
+/*
+whip_server:
+  enable: true
+  ssl_enable: false
+  cert_path: "certificate.crt"
+  key_path: "private.key"
+  listen_ip: "0.0.0.0"
+  port: 6443
+*/
+class WhipServerConfig
+{
+public:
+    WhipServerConfig() = default;
+    ~WhipServerConfig() = default;
+public:
+    bool        enable_ = false;
+    bool        ssl_enable_ = false;
+    std::string cert_path_;
+    std::string key_path_;
+    std::string listen_ip_ = "0.0.0.0";
+    uint16_t    port_ = 6443;
+};
+
 class EventLogConfig
 {
 public:
@@ -132,7 +155,10 @@ public:
     
 public:
     WSSignalConfig ws_signal_cfg_;
-    
+
+public:
+    WhipServerConfig whip_server_cfg_;
+
 public:
     std::vector<RtcCandidate> rtc_candidates_;
     std::string cert_path_;

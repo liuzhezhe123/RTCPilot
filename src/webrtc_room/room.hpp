@@ -3,6 +3,7 @@
 #include "utils/logger.hpp"
 #include "utils/timer.hpp"
 #include "utils/timeex.hpp"
+#include "net/http/http_common.hpp"
 #include "webrtc_session.hpp"
 #include "udp_transport.hpp"
 #include "rtc_info.hpp"
@@ -37,8 +38,11 @@ public:
     void Close();
     int UserJoin(const std::string& user_id, 
         const std::string& user_name,
+        bool audience,
         int id,
         ProtooResponseI* resp_cb);
+    int WhipUserJoin(const std::string& user_id, 
+        const std::string& user_name);
 	int UserLeave(const std::string& user_id);
     int DisconnectUser(const std::string& user_id);
 
@@ -47,6 +51,10 @@ public:
         const std::string& sdp_str, 
         int id,
         ProtooResponseI* resp_cb);
+    int HandleWhipPushSdp(const std::string& user_id, 
+        const std::string& sdp_type, 
+        const std::string& sdp_str, 
+        std::string& anwser_sdp);
     int HandlePullSdp(const PullRequestInfo& pull_info, 
         const std::string& sdp_type, 
         const std::string& sdp_str, 

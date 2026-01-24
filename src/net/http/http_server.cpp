@@ -39,6 +39,11 @@ void HttpServer::AddPostHandle(std::string uri, HTTP_HANDLE_PTR handle_func) {
     post_handle_map_.insert(std::make_pair(uri_key, handle_func));
 }
 
+void HttpServer::AddDeleteHandle(std::string uri, HTTP_HANDLE_PTR handle_func) {
+    std::string uri_key = GetUri(uri);
+    delete_handle_map_.insert(std::make_pair(uri_key, handle_func));
+}
+
 void HttpServer::OnAccept(int ret_code, uv_loop_t* loop, uv_stream_t* handle) {
     if (ret_code < 0) {
         return;
@@ -78,6 +83,16 @@ HTTP_HANDLE_PTR HttpServer::GetHandle(HttpRequest* request) {
             handle_func = iter->second;
             return handle_func;
         }
+    } else if (request->method_ == "DELETE") {
+        iter = delete_handle_map_.find(request->uri_);
+        if (iter != delete_handle_map_.end()) {
+            handle_func = iter->second;
+            return handle_func;
+        }
+    } else {
+        LogWarnf(logger_, "####### HttpServer::GetHandle unsupported method:%s, uri:%s",
+            request->method_.c_str(), request->uri_.c_str());
+        return handle_func;
     }
     
     iter = get_handle_map_.find("/");

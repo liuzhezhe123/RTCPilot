@@ -65,11 +65,12 @@ class Room:
 		self.log.info("User %s(%s) joining room %s", user_id, user_name, self.room_id)
 		existing = self.get_user(user_id)
 		if existing is None:
-			user = User(user_id=user_id, name=user_name)
+			user = User(user_id=user_id, name=user_name, audience=audience)
 			self.add_user(user)
 		else:
 			self.log.info("User %s already exists in room %s", user_id, self.room_id)
 			user = existing
+			user.SetAudience(audience)
 
 		if session is not None:
 			# associate session with the user (User manages single session)
@@ -103,9 +104,12 @@ class Room:
 			# skip the joining user
 			if u.user_id == user_id:
 				continue
+			if u.IsAudience():
+				continue
 			user_info = {
 				"userId": u.user_id,
 				"userName": u.name,
+				"audience": u.IsAudience(),
 				"pushers": [],
 			}
 			pushers = u.get_pusher_info()

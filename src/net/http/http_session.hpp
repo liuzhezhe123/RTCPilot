@@ -1,7 +1,7 @@
 #ifndef HTTP_SESSION_HPP
 #define HTTP_SESSION_HPP
 #ifdef _WIN64
-#define WIN32_LEAN_AND_MEAN  // ÆÁ±Î Windows ¾É°æÈßÓàÍ·ÎÄ¼þ£¨°üÀ¨ winsock.h£©
+#define WIN32_LEAN_AND_MEAN  // ï¿½ï¿½ï¿½ï¿½ Windows ï¿½É°ï¿½ï¿½ï¿½ï¿½ï¿½Í·ï¿½Ä¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ winsock.hï¿½ï¿½
 #endif
 #include "tcp_session.hpp"
 #include "data_buffer.hpp"
@@ -39,6 +39,7 @@ public:
     bool IsContinue() { return continue_flag_; }
     std::string RemoteEndpoint() { return remote_address_; }
 	Logger* GetLogger() { return logger_; }
+    uv_loop_t* GetLoop() { return loop_; }
 
 protected://TcpSessionCallbackI
     virtual void OnWrite(int ret_code, size_t sent_size) override;
@@ -50,6 +51,7 @@ private:
 
 private:
     HttpCallbackI* callback_;
+    uv_loop_t* loop_ = nullptr;
     Logger* logger_ = nullptr;
     std::shared_ptr<TcpBaseSession> session_ptr_;
     std::shared_ptr<HttpResponse> response_ptr_;

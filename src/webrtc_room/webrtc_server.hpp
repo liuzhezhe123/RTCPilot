@@ -23,6 +23,7 @@ public:
 public:
     static void SetUserName2Session(const std::string& username, std::shared_ptr<WebRtcSession> session);
     static void SetAddr2Session(uint64_t addr_u64, std::shared_ptr<WebRtcSession> session);
+    static void RemoveSessionByRoomId(const std::string& room_id);
 protected:
     virtual void OnWrite(size_t sent_size, UdpTuple address) override;
     virtual void OnRead(const char* data, size_t data_size, UdpTuple address) override;

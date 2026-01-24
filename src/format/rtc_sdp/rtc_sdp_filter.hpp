@@ -103,6 +103,20 @@ public:
                     codec_filter.codec_.opus_fmtp_param_->useinbandfec_) {
                     continue;
                 }
+                if (input_codec->opus_fmtp_param_->maxaveragebitrate_ > 0 && 
+                    input_codec->opus_fmtp_param_->maxaveragebitrate_ !=
+                    codec_filter.codec_.opus_fmtp_param_->maxaveragebitrate_) {
+                    continue;
+                }
+                if (input_codec->opus_fmtp_param_->stereo_ > 0 && input_codec->opus_fmtp_param_->stereo_ !=
+                    codec_filter.codec_.opus_fmtp_param_->stereo_) {
+                    continue;
+                }
+                if (input_codec->opus_fmtp_param_->sprop_stereo_ > 0 &&
+                    input_codec->opus_fmtp_param_->sprop_stereo_ !=
+                    codec_filter.codec_.opus_fmtp_param_->sprop_stereo_) {
+                    continue;
+                }
                 found = true;
                 break;
             }

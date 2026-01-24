@@ -22,6 +22,7 @@ from .push_info import PushInfo
 class User:
     user_id: str
     name: str = ""
+    audience: bool = False
     pushers: Dict[str, PushInfo] = field(default_factory=dict)
     # weak references to session objects (WsProtooSession). Use WeakSet to
     # avoid creating strong reference cycles — WsProtooServer holds the
@@ -121,3 +122,9 @@ class User:
     def get_name(self) -> str:
         """Return the user name."""
         return self.name
+    def IsAudience(self) -> bool:
+        """Return whether the user is an audience member."""
+        return self.audience
+    def SetAudience(self, audience: bool) -> None:
+        """Set whether the user is an audience member."""
+        self.audience = audience

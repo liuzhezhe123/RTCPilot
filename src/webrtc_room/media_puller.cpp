@@ -27,9 +27,9 @@ MediaPuller::MediaPuller(const RtpSessionParam& param,
     puller_id_ = cpp_streamer::UUID::MakeUUID2();
     pusher_id_ = pusher_id;
     
-    LogInfof(logger_, "MediaPuller construct, room_id:%s, pusher_id:%s, puller_user_id:%s, pusher_user_id:%s, session_id:%s, puller_id:%s, ssrc:%u, payload_type:%u, media_type:%s",
+    LogInfof(logger_, "MediaPuller construct, room_id:%s, pusher_id:%s, puller_user_id:%s, pusher_user_id:%s, session_id:%s, puller_id:%s, ssrc:%u, media_type:%s",
         room_id_.c_str(), pusher_id_.c_str(), puller_user_id_.c_str(), pusher_user_id_.c_str(), session_id_.c_str(), puller_id_.c_str(),
-        param_.ssrc_, param_.payload_type_, avtype_tostring(param_.av_type_).c_str());
+        param_.ssrc_, avtype_tostring(param_.av_type_).c_str());
 }
 
 MediaPuller::~MediaPuller() 
@@ -83,8 +83,12 @@ void MediaPuller::OnTransportSendRtp(RtpPacket* in_pkt) {
     if (!r) {
         return;
     }
-	
+    int origin_payload_type = rtp_pkt->GetPayloadType();
+    // modify payload type to puller's payload type
+    rtp_pkt->SetPayloadType(param_.payload_type_);
     cb_->OnTransportSendRtp(rtp_pkt->GetData(), rtp_pkt->GetDataLength());
+    // restore payload type
+    rtp_pkt->SetPayloadType(origin_payload_type);
 }
 
 void MediaPuller::OnTimer(int64_t now_ms) {

@@ -10,6 +10,7 @@ event_log:
 
 #websocket server
 websocket_server:
+  # wss enable only when you have valid certificate and key files
   ssl_enable: false
   cert_path: "certificate.crt"
   key_path: "private.key"
@@ -48,6 +49,14 @@ candidates:
 
 cert_path: "certificate.crt"
 key_path: "private.key"
+
+whip_server:
+  enable: true
+  ssl_enable: false
+  cert_path: "certificate.crt"
+  key_path: "private.key"
+  listen_ip: "0.0.0.0"
+  port: 6443
 
 downlink_discard_percent: 0
 uplink_discard_percent: 0

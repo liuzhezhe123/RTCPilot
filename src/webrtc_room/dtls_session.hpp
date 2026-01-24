@@ -1,6 +1,7 @@
 #ifndef DTLS_SESSION_HPP
 #define DTLS_SESSION_HPP
 #include "utils/logger.hpp"
+#include "utils/timer.hpp"
 #include "udp_transport.hpp"
 #include "srtp_session.hpp"
 #include "net/udp/udp_pub.hpp"
@@ -66,7 +67,7 @@ struct SRtpCryptoSuiteMapEntry
 	const char* name;
 };
 
-class DtlsSession
+class DtlsSession : public TimerInterface
 {
 friend long OnSslBioOut(BIO* bio, int operationType, const char* argp, size_t len, int /*argi*/, long /*argl*/, int ret, size_t* /*processed*/);
 friend void OnSslMsgCallback(int write_p, int version, int content_type,
@@ -85,6 +86,12 @@ public:
 	int Run();
 	int OnHandleDtlsData(const uint8_t* data, size_t len, UdpTuple addr);
 	bool CheckStatus(int ret);
+    bool GetIceConnected() const { return ice_connected_; }
+    void SetIceConnected(bool connected) { ice_connected_ = connected; }
+    void SetRemoteAddress(const UdpTuple& addr) { dtls_remote_addr_ = addr; }
+    UdpTuple GetRemoteAddress() { return dtls_remote_addr_; }
+    bool GetDtlsConnected() const { return dtls_connected_; }
+    void SetDtlsConnected(bool connected) { dtls_connected_ = connected; }
 
 public:
     void OnSslInfo(int where, int ret);
@@ -98,6 +105,9 @@ public:
     static std::vector<Fingerprint> GetLocalFingerprints() { return DtlsSession::local_fingerprints_; }
     static Fingerprint GetLocalFingerprint(FingerprintAlgorithm algorithm);
     
+protected:
+    virtual bool OnTimer() override;
+
 private:
     static X509* certificate_;
     static EVP_PKEY* private_key_;
@@ -130,6 +140,11 @@ private:
 	BIO* ssl_bio_to_network_ = nullptr;
 	bool handshake_done_ = false;
 	std::string remote_cert_;
+
+private:
+    bool ice_connected_ = false;//stun packet received
+    bool dtls_connected_ = false;//dtls handshake done
+    int64_t last_dtls_send_ms_ = -1;
 };
 
 } // namespace cpp_streamer

@@ -13,7 +13,8 @@ request:
     "data": {
         "roomId": "6qtz8zit",
         "userId": "5860",
-        "userName": "User_5860"
+        "userName": "User_5860",
+        "audit": false
     }
 }
 ```

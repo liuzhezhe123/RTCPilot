@@ -164,32 +164,41 @@ bool SRtpSession::InitSrtpSession() {
         return false;
     }
     
-    // 验证密钥长度是否匹配 policy 要求
-    // 对于 AEAD 模式，srtp_crypto_policy_set_aes_gcm_*_8_auth() 设置的 cipher_key_len 
-    // 已经包含了 salt 的长度（即 master key 的总长度）
-    // 对于传统模式，cipher_key_len 只包含加密密钥，需要加上 salt 长度
-    size_t expected_key_len = 0;
     switch (crypto_suite_) {
         case AEAD_AES_256_GCM:
+		{
+			srtp_crypto_policy_set_aes_gcm_256_16_auth(&policy.rtp);
+			srtp_crypto_policy_set_aes_gcm_256_16_auth(&policy.rtcp);
+			break;
+		}
         case AEAD_AES_128_GCM:
-            // AEAD 模式：cipher_key_len 已经包含了 key + salt 的总长度
-            // AEAD_AES_256_GCM: cipher_key_len = 44 (32 key + 12 salt)
-            // AEAD_AES_128_GCM: cipher_key_len = 28 (16 key + 12 salt)
-            expected_key_len = policy.rtp.cipher_key_len;
+		{
+			srtp_crypto_policy_set_aes_gcm_128_16_auth(&policy.rtp);
+			srtp_crypto_policy_set_aes_gcm_128_16_auth(&policy.rtcp);
             break;
+        }
         case AES_CM_128_HMAC_SHA1_80:
-        case AES_CM_128_HMAC_SHA1_32:
-            // 传统模式：cipher_key_len 只包含加密密钥，需要加上 salt
-            // cipher_key_len = 16, salt = 14, total = 30
-            expected_key_len = policy.rtp.cipher_key_len + 14;
+        {
+			srtp_crypto_policy_set_aes_cm_128_hmac_sha1_80(&policy.rtp);
+			srtp_crypto_policy_set_aes_cm_128_hmac_sha1_80(&policy.rtcp);
             break;
+        }
+        case AES_CM_128_HMAC_SHA1_32:
+		{
+			srtp_crypto_policy_set_aes_cm_128_hmac_sha1_32(&policy.rtp);
+			srtp_crypto_policy_set_aes_cm_128_hmac_sha1_80(&policy.rtcp);
+			break;
+		}
         default:
-            expected_key_len = key_len_;
+        {
+            LogErrorf(logger_, "cipher type:%d is not supported", crypto_suite_);
+            return false;
+        }
     }
     
-    if (key_len_ != expected_key_len) {
-        LogErrorf(logger_, "Key length mismatch: expected %zu (cipher_key_len=%d), got %zu", 
-                  expected_key_len, policy.rtp.cipher_key_len, key_len_);
+    if (key_len_ != policy.rtp.cipher_key_len) {
+        LogErrorf(logger_, "Key length mismatch: expected %zu (cipher_key_len=%d), type:%d", 
+            key_len_, policy.rtp.cipher_key_len, crypto_suite_);
         return false;
     }
     

@@ -158,8 +158,53 @@ void Room::ReleaseUserResources(const std::string& user_id) {
     pusher2pullers_.erase(user_id);
 }
 
+int Room::WhipUserJoin(const std::string& user_id, const std::string& user_name) {
+    if (closed_) {
+        LogErrorf(logger_, "Room is closed, cannot join, room_id:%s", room_id_.c_str());
+        return -1;
+    }
+    last_alive_ms_ = now_millisec();
+    std::shared_ptr<RtcUser> new_user;
+    auto it = users_.find(user_id);
+    if (it != users_.end()) {
+        LogWarnf(logger_, "User already in room, user_id:%s, room_id:%s", 
+            user_id.c_str(), room_id_.c_str());
+        
+        if (g_rtc_event_log) {
+            json evt_data;
+            evt_data["event"] = "whip_join";
+            evt_data["room_id"] = room_id_;
+            evt_data["user_id"] = user_id;
+            evt_data["reconnect"] = true;
+            g_rtc_event_log->Log("whip_join", evt_data);
+        }
+        new_user = it->second;
+        new_user->SetWhip(true);
+    } else {
+        LogInfof(logger_, "New user joining room, user_id:%s, room_id:%s", 
+            user_id.c_str(), room_id_.c_str());
+        new_user = std::make_shared<RtcUser>(room_id_, user_id, user_name, false, nullptr, logger_);
+        new_user->SetWhip(true);
+        users_[user_id] = new_user;
+    }
+    if (g_rtc_event_log) {
+        json evt_data;
+        evt_data["event"] = "whip_join";
+        evt_data["room_id"] = room_id_;
+        evt_data["user_id"] = user_id;
+        evt_data["reconnect"] = false;
+        g_rtc_event_log->Log("whip_join", evt_data);
+    }
+    Join2PilotCenter(new_user);
+
+    //notify other users
+    NotifyNewUser(user_id, user_name);
+    return 0;
+}
+
 int Room::UserJoin(const std::string& user_id, 
     const std::string& user_name,
+    bool audience,
     int id,
     ProtooResponseI* resp_cb) {
     std::vector<std::shared_ptr<RtcUser>> user_list;
@@ -180,13 +225,16 @@ int Room::UserJoin(const std::string& user_id,
             evt_data["room_id"] = room_id_;
             evt_data["user_id"] = user_id;
             evt_data["reconnect"] = true;
+            evt_data["audience"] = audience;
             g_rtc_event_log->Log("join", evt_data);
         }
+        new_user = it->second;
+        new_user->SetAudience(audience);
         return ReConnect(it->second, id, resp_cb);
     } else {
         LogInfof(logger_, "New user joining room, user_id:%s, room_id:%s", 
             user_id.c_str(), room_id_.c_str());
-        new_user = std::make_shared<RtcUser>(room_id_, user_id, user_name, resp_cb, logger_);
+        new_user = std::make_shared<RtcUser>(room_id_, user_id, user_name, audience, resp_cb, logger_);
         users_[user_id] = new_user;
     }
     if (g_rtc_event_log) {
@@ -195,10 +243,11 @@ int Room::UserJoin(const std::string& user_id,
         evt_data["room_id"] = room_id_;
         evt_data["user_id"] = user_id;
         evt_data["reconnect"] = false;
+        evt_data["audience"] = audience;
         g_rtc_event_log->Log("join", evt_data);
     }
-    LogInfof(logger_, "User joined room, user_id:%s, user_name:%s, room_id:%s",
-        user_id.c_str(), user_name.c_str(), room_id_.c_str());
+    LogInfof(logger_, "User joined room, user_id:%s, user_name:%s, audience:%s, room_id:%s",
+        user_id.c_str(), user_name.c_str(), BOOL2STRING(audience), room_id_.c_str());
 
     for (const auto& pair : users_) {
         if (pair.first == user_id) {
@@ -214,6 +263,11 @@ int Room::UserJoin(const std::string& user_id,
     resp_json["users"] = json::array();
 
     for (const auto& user : user_list) {
+        if (user->IsAudience()) {
+            LogInfof(logger_, "Skipping audience user in join response, user_id:%s, room_id:%s",
+                user->GetUserId().c_str(), room_id_.c_str());
+            continue;
+        }
         json user_json = json::object();
         user_json["userId"] = user->GetUserId();
         user_json["userName"] = user->GetUserName();
@@ -228,12 +282,17 @@ int Room::UserJoin(const std::string& user_id,
         resp_json["users"].push_back(user_json);
     }
 
+
     Join2PilotCenter(new_user);
+    
     ProtooResponse resp(id, 0, "", resp_json);
     resp_cb->OnProtooResponse(resp);
 
     //notify other users
-    NotifyNewUser(user_id, user_name);
+    if (!audience) {
+        NotifyNewUser(user_id, user_name);
+    }
+    
     return 0;
 }
 
@@ -415,6 +474,118 @@ int Room::DisconnectUser(const std::string& user_id) {
     return 0;
 }
 
+int Room::HandleWhipPushSdp(const std::string& user_id, 
+        const std::string& sdp_type, 
+        const std::string& sdp_str, 
+        std::string& answer_sdp_str) {
+    last_alive_ms_ = now_millisec();
+    auto sdp_ptr = RtcSdp::ParseSdp(sdp_type, sdp_str);
+    if (g_rtc_event_log) {
+        json evt_data;
+        evt_data["event"] = "pushSdp";
+        evt_data["room_id"] = room_id_;
+        evt_data["user_id"] = user_id;
+        g_rtc_event_log->Log("pushSdp", evt_data);
+    }
+    auto webrtc_session_ptr = std::make_shared<WebRtcSession>(SRtpType::SRTP_SESSION_TYPE_RECV, 
+        room_id_, user_id, this, this, loop_, logger_);
+    webrtc_session_ptr->DtlsInit(Role::ROLE_CLIENT, sdp_ptr->finger_print_);
+    std::string local_ufrag = webrtc_session_ptr->GetIceUfrag();
+    std::string local_pwd = webrtc_session_ptr->GetIcePwd();
+    std::string local_fp = webrtc_session_ptr->GetLocalFingerPrint();
+
+
+    WebRtcServer::SetUserName2Session(local_ufrag, webrtc_session_ptr);
+    auto answer_sdp = sdp_ptr->GenAnswerSdp(g_sdp_answer_filter, 
+        RTC_SETUP_ACTIVE, 
+        DIRECTION_RECVONLY,
+        local_ufrag,
+        local_pwd,
+        local_fp
+        );
+    if (answer_sdp == nullptr) {
+        LogErrorf(logger_, "Generate answer SDP failed, user_id:%s, room_id:%s",
+            user_id.c_str(), room_id_.c_str());
+        return -1;
+    }
+    try {
+        for (auto & candidate : Config::Instance().rtc_candidates_) {
+            IceCandidate ice_candidate;
+            ice_candidate.ip_ = candidate.candidate_ip_;
+            ice_candidate.port_ = candidate.port_;
+            ice_candidate.foundation_ = cpp_streamer::UUID::GetRandomUint(10000001, 99999999);
+            ice_candidate.priority_ = 10001;
+            ice_candidate.net_type_ = candidate.net_type_;
+            answer_sdp->ice_candidates_.push_back(ice_candidate);
+        }
+    } catch(const std::exception& e) {
+        LogErrorf(logger_, "No RTC candidate found in config, user_id:%s, room_id:%s, error:%s",
+            user_id.c_str(), room_id_.c_str(), e.what());
+        return -1;
+    }
+
+    try {
+        auto rtp_params = GetRtpSessionParamsFromSdp(*answer_sdp);
+        if (rtp_params.empty()) {
+            LogErrorf(logger_, "No valid RTP session params found in SDP, user_id:%s, room_id:%s",
+                user_id.c_str(), room_id_.c_str());
+            return -1;
+        }
+        for (const auto& param : rtp_params) {
+            std::string pusher_id;
+            LogInfof(logger_, "Adding RTP pusher session, user_id:%s, room_id:%s, rtp_param:%s",
+                user_id.c_str(), room_id_.c_str(), param.Dump().c_str());
+            webrtc_session_ptr->AddPusherRtpSession(param, pusher_id);
+            auto it = users_.find(user_id);
+            if (it != users_.end()) {
+                PushInfo push_info;
+                push_info.pusher_id_ = pusher_id;
+                push_info.param_ = param;
+                it->second->UpdateHeartbeat();
+                it->second->AddPusher(pusher_id, push_info);
+            }
+            auto media_pushers = webrtc_session_ptr->GetMediaPushers();
+            for (const auto& media_pusher : media_pushers) {
+                pusherId2pusher_[media_pusher->GetPusherId()] = media_pusher;
+            }
+        }
+    } catch(const std::exception& e) {
+        LogErrorf(logger_, "Failed to add RTP sessions from SDP, user_id:%s, room_id:%s, error:%s",
+            user_id.c_str(), room_id_.c_str(), e.what());
+        return -1;
+    }
+    try {
+        LogDebugf(logger_, "Generated answer SDP, user_id:%s, room_id:%s, sdp dump:\r\n%s",
+            user_id.c_str(), room_id_.c_str(), answer_sdp->DumpSdp().c_str());
+
+        answer_sdp_str = answer_sdp->GenSdpString(true);
+        LogInfof(logger_, "Generated answer SDP string, user_id:%s, room_id:%s, sdp:\r\n%s",
+            user_id.c_str(), room_id_.c_str(), answer_sdp_str.c_str());
+    } catch(const std::exception& e) {
+        LogErrorf(logger_, "Failed to generate answer SDP string, user_id:%s, room_id:%s, error:%s",
+            user_id.c_str(), room_id_.c_str(), e.what());
+        return -1;
+    }
+    std::vector<PushInfo> push_infos;
+    auto user_it = users_.find(user_id);
+    if (user_it == users_.end()) {
+        LogErrorf(logger_, "User not found when notify new pusher to pilot center, user_id:%s, room_id:%s",
+            user_id.c_str(), room_id_.c_str());
+        return -1;
+    }
+    std::map<std::string, PushInfo> pusher_map = user_it->second->GetPushers();
+    for (const auto& pair : pusher_map) {
+        push_infos.push_back(pair.second);
+    }
+    std::string user_name = user_it->second->GetUserName();
+
+    //notify to local other users
+    NotifyNewPusher(user_id, user_name, push_infos);
+
+    NewPusher2PilotCenter(user_id, push_infos);
+    return 0;
+}
+
 int Room::HandlePushSdp(const std::string& user_id, 
     const std::string& sdp_type, 
     const std::string& sdp_str, 
@@ -564,6 +735,7 @@ int Room::HandleRemotePullSdp(const std::string& pusher_user_id,
             evt_data["pull_info"] = pull_info_json;
             g_rtc_event_log->Log("remotePullSdp", evt_data);
         }
+        
         for (const auto& push_info : pull_info.pushers_) {
             auto user_it = users_.find(pusher_user_id);
             if (user_it == users_.end()) {
@@ -741,8 +913,6 @@ int Room::HandlePullSdp(const PullRequestInfo& pull_info,
             return -1;
         }
         for (const auto& push_info : pull_info.pushers_) {
-            RtpSessionParam param;
-
             std::string id = push_info.pusher_id_;
             auto it = pusherId2pusher_.find(id);
             if (it == pusherId2pusher_.end()) {
@@ -751,7 +921,6 @@ int Room::HandlePullSdp(const PullRequestInfo& pull_info,
                 continue;
             }
             std::shared_ptr<MediaPusher> media_pusher = it->second;
-            param.av_type_ = media_pusher->GetMediaType();
 
             std::string puller_id;
             ret = webrtc_session_ptr->AddPullerRtpSession(media_pusher->GetRtpSessionParam(), 
@@ -940,7 +1109,7 @@ int Room::UpdateRtcSdpByPullers(std::vector<std::shared_ptr<MediaPuller>>& media
             if (it->second->media_type_ == media_type) {
                 it->second->direction_ = DIRECTION_SENDONLY;
                 it->second->ssrc_infos_.clear();
-                RtpSessionParam param = media_puller->GetRtpSessionParam();
+                RtpSessionParam& param = media_puller->GetRtpSessionParam();
                 auto ssrc_info = std::make_shared<SsrcInfo>();
                 ssrc_info->ssrc_ = param.ssrc_;
                 ssrc_info->is_main_ = true;
@@ -956,18 +1125,69 @@ int Room::UpdateRtcSdpByPullers(std::vector<std::shared_ptr<MediaPuller>>& media
                     rtx_ssrc_info->stream_id_ = ssrc_info->stream_id_;
                     it->second->ssrc_infos_[param.rtx_ssrc_] = rtx_ssrc_info;
                 }
-                auto main_codec_ptr = std::make_shared<RtcSdpMediaCodec>();
-       
-                main_codec_ptr->codec_name_ = param.codec_name_;
-                main_codec_ptr->is_rtx_ = false;
-                main_codec_ptr->payload_type_ = param.payload_type_;
-                main_codec_ptr->rate_ = param.clock_rate_;
-                main_codec_ptr->channel_ = param.channel_;
-                main_codec_ptr->fmtp_param_ = param.fmtp_param_;
-                main_codec_ptr->rtx_payload_type_ = param.rtx_payload_type_;
-                main_codec_ptr->rtcp_features_ = param.rtcp_features_;
-
-                it->second->media_codecs_[param.payload_type_] = main_codec_ptr;
+                bool found_main_codec = false;
+                for (auto media_codec_it = it->second->media_codecs_.begin();
+                    media_codec_it != it->second->media_codecs_.end(); media_codec_it++) {
+                    bool contain = FmtpParamContain(media_codec_it->second->fmtp_param_, param.fmtp_param_);
+                    if (media_codec_it->second->codec_name_ == param.codec_name_ && contain) {
+                        param.payload_type_ = media_codec_it->second->payload_type_;
+                        param.rtx_payload_type_ = media_codec_it->second->rtx_payload_type_;
+                        media_codec_it->second->rate_ = param.clock_rate_;
+                        media_codec_it->second->channel_ = param.channel_;
+                        param.rtcp_features_ = media_codec_it->second->rtcp_features_;
+                        found_main_codec = true;
+                        break;
+                    }
+                }
+                if (!found_main_codec) {
+                    auto main_codec_ptr = std::make_shared<RtcSdpMediaCodec>();
+                    
+                    main_codec_ptr->codec_name_ = param.codec_name_;
+                    main_codec_ptr->is_rtx_ = param.rtx_payload_type_ > 0 ? false : true;
+                    main_codec_ptr->payload_type_ = param.payload_type_;
+                    main_codec_ptr->rate_ = param.clock_rate_;
+                    main_codec_ptr->channel_ = param.channel_;
+                    main_codec_ptr->fmtp_param_ = param.fmtp_param_;
+                    main_codec_ptr->rtx_payload_type_ = param.rtx_payload_type_;
+                    main_codec_ptr->rtcp_features_ = param.rtcp_features_;
+                    
+                    it->second->media_codecs_[param.payload_type_] = main_codec_ptr;
+                }
+                const std::string abs_time_ext_str = "http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time";
+                const std::string trans_wide_ext_str = "http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01";
+                const std::string mid_ext_str = "urn:ietf:params:rtp-hdrext:sdes:mid";
+                const std::string audio_level_ext_str = "urn:ietf:params:rtp-hdrext:ssrc-audio-level";
+                
+                for (auto ext_it = it->second->extensions_.begin();
+                    ext_it != it->second->extensions_.end(); ) {
+                    if (ext_it->second->uri_ == abs_time_ext_str) {
+                        if (param.abs_send_time_ext_id_ < 0) {
+                            ext_it = it->second->extensions_.erase(ext_it);
+                            continue;
+                        }
+                    }
+                    if (ext_it->second->uri_ == trans_wide_ext_str) {
+                        if (param.tcc_ext_id_ < 0) {
+                            ext_it = it->second->extensions_.erase(ext_it);
+                            continue;
+                        }
+                    }
+                    if (ext_it->second->uri_ == mid_ext_str) {
+                        if (param.mid_ext_id_ < 0) {
+                            ext_it = it->second->extensions_.erase(ext_it);
+                            continue;
+                        }
+                    }
+                    /*
+                    if (ext_it->second->uri_ == audio_level_ext_str) {
+                        if (param.audio_level_ext_id_ < 0) {
+                            ext_it = it->second->extensions_.erase(ext_it);
+                            continue;
+                        }
+                    }
+                        */
+                    ext_it++;
+                }
             } else {
                 continue;
             }
@@ -1076,12 +1296,14 @@ void Room::Join2PilotCenter(std::shared_ptr<RtcUser> user_ptr) {
         join_data["roomId"] = room_id_;
         join_data["userId"] = user_ptr->GetUserId();
         join_data["userName"] = user_ptr->GetUserName();
+        join_data["audience"] = user_ptr->IsAudience();
         if (g_rtc_event_log) {
             json evt_data;
             evt_data["event"] = "join2PilotCenter";
             evt_data["room_id"] = room_id_;
             evt_data["user_id"] = user_ptr->GetUserId();
             evt_data["user_name"] = user_ptr->GetUserName();
+            evt_data["audience"] = user_ptr->IsAudience();
             g_rtc_event_log->Log("join2PilotCenter", evt_data);
         }
         (void)pilot_client_->AsyncRequest("join", join_data, this);
@@ -1184,7 +1406,7 @@ void Room::JoinResponseFromPilotCenter(const std::string& method, json& resp_jso
             if (it != users_.end()) {
                 continue;
             }
-            std::shared_ptr<RtcUser> new_user = std::make_shared<RtcUser>(room_id_, user_id, user_name, nullptr, logger_);
+            std::shared_ptr<RtcUser> new_user = std::make_shared<RtcUser>(room_id_, user_id, user_name, false, nullptr, logger_);
             new_user->SetRemote(true);
             users_[user_id] = new_user;
             // todo: handle pushers info
@@ -1235,7 +1457,7 @@ void Room::HandleNewUserNotificationFromCenter(json& data_json) {
             evt_data["user_name"] = user_name;
             g_rtc_event_log->Log("newUserFromCenter", evt_data);
         }
-        std::shared_ptr<RtcUser> new_user = std::make_shared<RtcUser>(room_id_, user_id, user_name, nullptr, logger_);
+        std::shared_ptr<RtcUser> new_user = std::make_shared<RtcUser>(room_id_, user_id, user_name, false, nullptr, logger_);
         new_user->SetRemote(true);
         users_[user_id] = new_user;
         LogInfof(logger_, "HandleNewUserNotificationFromCenter, new remote user added, room_id:%s, user_id:%s, user_name:%s",

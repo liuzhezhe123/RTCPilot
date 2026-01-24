@@ -12,6 +12,7 @@
 #include "webrtc_room/room_mgr.hpp"
 #include "webrtc_room/pilot_message_client.hpp"
 #include "webrtc_room/port_generator.hpp"
+#include "webrtc_room/whip.hpp"
 #include "config/config.hpp"
 #include "utils/logger.hpp"
 #include "utils/av/media_stream_manager.hpp"
@@ -177,6 +178,33 @@ int main(int argc, char* argv[]) {
             candidate.port_);
         auto webrtc_server_ptr = std::make_unique<WebRtcServer>(loop, logger.get(), candidate);
         webrtc_servers.emplace_back(std::move(webrtc_server_ptr)); 
+    }
+
+    std::unique_ptr<Whip> whip_server_ptr;
+    if (Config::Instance().whip_server_cfg_.enable_) {
+        if (Config::Instance().whip_server_cfg_.ssl_enable_
+            && !Config::Instance().whip_server_cfg_.cert_path_.empty()
+            && !Config::Instance().whip_server_cfg_.key_path_.empty()) {
+            whip_server_ptr.reset(new Whip(loop,
+                Config::Instance().whip_server_cfg_.listen_ip_,
+                Config::Instance().whip_server_cfg_.port_,
+                Config::Instance().whip_server_cfg_.key_path_,
+                Config::Instance().whip_server_cfg_.cert_path_,
+                logger.get()));
+            LogInfof(logger.get(), "Starting WHIP server with ssl on %s:%d",
+                Config::Instance().whip_server_cfg_.listen_ip_.c_str(),
+                Config::Instance().whip_server_cfg_.port_);
+        } else {
+            whip_server_ptr.reset(new Whip(loop,
+                Config::Instance().whip_server_cfg_.listen_ip_,
+                Config::Instance().whip_server_cfg_.port_,
+                logger.get()));
+            LogInfof(logger.get(), "Starting WHIP server on %s:%d",
+                Config::Instance().whip_server_cfg_.listen_ip_.c_str(),
+                Config::Instance().whip_server_cfg_.port_);
+        }
+    } else {
+        LogInfof(logger.get(), "WHIP server is disabled");
     }
     
     if (Config::Instance().pilot_center_cfg_.enable_ && pilot_client) {

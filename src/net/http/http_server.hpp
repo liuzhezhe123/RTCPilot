@@ -22,6 +22,7 @@ public:
 public:
     void AddGetHandle(std::string uri, HTTP_HANDLE_PTR handle_func);
     void AddPostHandle(std::string uri, HTTP_HANDLE_PTR handle_func);
+    void AddDeleteHandle(std::string uri, HTTP_HANDLE_PTR handle_func);
 
 public:// tcp callback
     virtual void OnAccept(int ret_code, uv_loop_t* loop, uv_stream_t* handle) override;
@@ -41,6 +42,7 @@ private:
     std::unordered_map< std::string, std::shared_ptr<HttpSession> > session_ptr_map_;
     std::unordered_map< std::string, HTTP_HANDLE_PTR > get_handle_map_;
     std::unordered_map< std::string, HTTP_HANDLE_PTR > post_handle_map_;
+    std::unordered_map< std::string, HTTP_HANDLE_PTR > delete_handle_map_;
 private:
     Logger* logger_ = nullptr;
 };

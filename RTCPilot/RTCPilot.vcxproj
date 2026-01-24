@@ -191,6 +191,7 @@
     <ClCompile Include="..\src\webrtc_room\tcc_server.cpp" />
     <ClCompile Include="..\src\webrtc_room\webrtc_server.cpp" />
     <ClCompile Include="..\src\webrtc_room\webrtc_session.cpp" />
+    <ClCompile Include="..\src\webrtc_room\whip.cpp" />
     <ClCompile Include="..\src\ws_message\ws_message_server.cpp" />
     <ClCompile Include="..\src\ws_message\ws_message_session.cpp" />
     <ClCompile Include="..\src\ws_message\ws_protoo_client.cpp" />
@@ -297,6 +298,7 @@
     <ClInclude Include="..\src\webrtc_room\tcc_server.hpp" />
     <ClInclude Include="..\src\webrtc_room\webrtc_server.hpp" />
     <ClInclude Include="..\src\webrtc_room\webrtc_session.hpp" />
+    <ClInclude Include="..\src\webrtc_room\whip.hpp" />
     <ClInclude Include="..\src\ws_message\ws_message_server.hpp" />
     <ClInclude Include="..\src\ws_message\ws_message_session.hpp" />
     <ClInclude Include="..\src\ws_message\ws_protoo_client.hpp" />

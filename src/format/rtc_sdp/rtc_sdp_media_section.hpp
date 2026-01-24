@@ -156,6 +156,12 @@ public:
                 opus_fmtp_param_->minptime_ = std::stoi(key_value[1]);
             } else if (key_value[0] == "useinbandfec") {
                 opus_fmtp_param_->useinbandfec_ = std::stoi(key_value[1]);
+            } else if (key_value[0] == "maxaveragebitrate") {
+                opus_fmtp_param_->maxaveragebitrate_ = std::stoi(key_value[1]);
+            } else if (key_value[0] == "stereo") {
+                opus_fmtp_param_->stereo_ = std::stoi(key_value[1]);
+            } else if (key_value[0] == "sprop-stereo") {
+                opus_fmtp_param_->sprop_stereo_ = std::stoi(key_value[1]);
             }
         }
         return 0;

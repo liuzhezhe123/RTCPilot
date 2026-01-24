@@ -106,6 +106,9 @@ public:
 public:
     int minptime_ = 0;
     int useinbandfec_ = 0;
+    int maxaveragebitrate_ = 0;
+    int stereo_ = 0;
+    int sprop_stereo_ = 0;
 };
 
 class SsrcInfo
@@ -118,7 +121,8 @@ public:
     uint32_t ssrc_ = 0;
     bool is_main_ = true;
     std::string cname_;
-    std::string stream_id_;
+    std::string stream_id_;//stream id: msid's second part
+    std::string track_id_;//track id: msid's third part
 };
 
 class ExtensionInfo

@@ -7,6 +7,7 @@ namespace cpp_streamer {
 RtcUser::RtcUser(const std::string& roomId, 
     const std::string& user_id, 
     const std::string& user_name, 
+    bool audience,
     ProtooResponseI* resp_cb,
     Logger* logger)
     : room_id_(roomId), 
@@ -15,6 +16,7 @@ RtcUser::RtcUser(const std::string& roomId,
       resp_cb_(resp_cb),
       logger_(logger)
 {
+    audience_ = audience;
     last_heartbeat_ms_ = now_millisec();
     LogInfof(logger_, "RtcUser construct, roomId:%s, userId:%s, userName:%s",
         room_id_.c_str(), user_id_.c_str(), user_name_.c_str());

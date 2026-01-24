@@ -93,6 +93,27 @@ int Config::LoadConfig(const std::string& config_file) {
             }
         }
 
+        auto whip_server_node = config["whip_server"];
+        if (whip_server_node) {
+            if (whip_server_node["enable"]) {
+                whip_server_cfg_.enable_ = whip_server_node["enable"].as<bool>();
+            }
+            if (whip_server_node["ssl_enable"]) {
+                whip_server_cfg_.ssl_enable_ = whip_server_node["ssl_enable"].as<bool>();
+            }
+            if (whip_server_node["cert_path"]) {
+                whip_server_cfg_.cert_path_ = whip_server_node["cert_path"].as<std::string>();
+            }
+            if (whip_server_node["key_path"]) {
+                whip_server_cfg_.key_path_ = whip_server_node["key_path"].as<std::string>();
+            }
+            if (whip_server_node["listen_ip"]) {
+                whip_server_cfg_.listen_ip_ = whip_server_node["listen_ip"].as<std::string>();
+            }
+            if (whip_server_node["port"]) {
+                whip_server_cfg_.port_ = whip_server_node["port"].as<uint16_t>();
+            }
+        }
         auto pilot_center_node = config["pilot_center"];
         if (pilot_center_node) {
             if (pilot_center_node["enable"]) {
@@ -207,6 +228,19 @@ std::string Config::Dump() {
         dump_str += "    listen ip: " + candidate.listen_ip_ + "\n";
         dump_str += "    port: " + std::to_string(candidate.port_) + "\n";
     }
+
+    if (whip_server_cfg_.enable_) {
+        dump_str += "whip_server:\n";
+        dump_str += "  enable: " + std::string(whip_server_cfg_.enable_ ? "true" : "false") + "\n";
+        if (whip_server_cfg_.ssl_enable_) {
+            dump_str += "  ssl_enable: " + std::string(whip_server_cfg_.ssl_enable_ ? "true" : "false") + "\n";
+            dump_str += "  cert_path: " + whip_server_cfg_.cert_path_ + "\n";
+            dump_str += "  key_path: " + whip_server_cfg_.key_path_ + "\n";
+        }
+        dump_str += "  listen_ip: " + whip_server_cfg_.listen_ip_ + "\n";
+        dump_str += "  port: " +  std::to_string(whip_server_cfg_.port_) + "\n";
+    }
+
     dump_str += "downlink_discard_percent: " + std::to_string(downlink_discard_percent_) + "\n";
     dump_str += "uplink_discard_percent: " + std::to_string(uplink_discard_percent_) + "\n";
 

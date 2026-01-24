@@ -34,7 +34,7 @@ public:
     std::string GetPulllerUserId() { return puller_user_id_; }
     std::string GetPusherUserId() { return pusher_user_id_; }
     MEDIA_PKT_TYPE GetMediaType() { return param_.av_type_; }
-    const RtpSessionParam& GetRtpSessionParam() { return param_; }
+    RtpSessionParam& GetRtpSessionParam() { return param_; }
 
 public:
     void CreateRtpSendSession();

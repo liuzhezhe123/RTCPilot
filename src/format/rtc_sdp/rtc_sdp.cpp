@@ -288,8 +288,11 @@ std::shared_ptr<RtcSdp> RtcSdp::ParseSdp(const std::string& sdp_type, const std:
                 if (attr_parts[0] == "cname") {
                     ssrc_info_ptr->cname_ = attr_parts[1];
                 } else if (attr_parts[0] == "msid") {
+                    if (ssrc_parts.size() >= 2) {
+                        ssrc_info_ptr->stream_id_ = attr_parts[1];
+                    }
                     if (ssrc_parts.size() >= 3) {
-                        ssrc_info_ptr->stream_id_ = ssrc_parts[2];
+                        ssrc_info_ptr->track_id_ = ssrc_parts[2];
                     }
                 }
 
@@ -494,7 +497,7 @@ std::shared_ptr<RtcSdp> RtcSdp::GenAnswerSdp(
     return answer_sdp;
 }
 
-std::string RtcSdp::GenAudioSdpString(std::shared_ptr<RtcSdpMediaSection> audio_section_ptr) {
+std::string RtcSdp::GenAudioSdpString(std::shared_ptr<RtcSdpMediaSection> audio_section_ptr, bool ice_info_session_level) {
     std::string sdp_str;
 
     sdp_str += "m=audio 9 UDP/TLS/RTP/SAVPF";
@@ -514,21 +517,28 @@ std::string RtcSdp::GenAudioSdpString(std::shared_ptr<RtcSdpMediaSection> audio_
         sdp_str += "\r\n";
 
         if (codec->opus_fmtp_param_) {
+            //a=fmtp:111 minptime=10;maxaveragebitrate=96000;stereo=1;sprop-stereo=1;useinbandfec=1
             sdp_str += "a=fmtp:" + std::to_string(codec->payload_type_) + " " +
                        "minptime=" + std::to_string(codec->opus_fmtp_param_->minptime_) +
+                       ";maxaveragebitrate=" + std::to_string(codec->opus_fmtp_param_->maxaveragebitrate_) +
+                       ";stereo=" + std::to_string(codec->opus_fmtp_param_->stereo_) +
+                       ";sprop-stereo=" + std::to_string(codec->opus_fmtp_param_->sprop_stereo_) +
                        ";useinbandfec=" + std::to_string(codec->opus_fmtp_param_->useinbandfec_) + "\r\n";
         }
     }
-    sdp_str += "a=rtcp:9 IN IP4 0.0.0.0\r\n";
+    // sdp_str += "a=rtcp:9 IN IP4 0.0.0.0\r\n";
 
     for (const auto& ext_pair : audio_section_ptr->extensions_) {
         sdp_str += "a=extmap:" + std::to_string(ext_pair.second->id_) + " " + ext_pair.second->uri_ + "\r\n";
     }
-    sdp_str += "a=setup:";
-    sdp_str += (setup_ == RTC_SETUP_ACTIVE) ? "active" :
-               (setup_ == RTC_SETUP_PASSIVE) ? "passive" :
-               (setup_ == RTC_SETUP_ACTPASS) ? "actpass" : "unknown";
-    sdp_str += "\r\n";
+    if (!ice_info_session_level) {
+        sdp_str += "a=setup:";
+        sdp_str += (setup_ == RTC_SETUP_ACTIVE) ? "active" :
+                   (setup_ == RTC_SETUP_PASSIVE) ? "passive" :
+                   (setup_ == RTC_SETUP_ACTPASS) ? "actpass" : "unknown";
+        sdp_str += "\r\n";
+    }
+    
     sdp_str += "a=mid:" + std::to_string(audio_section_ptr->mid_) + "\r\n";
     sdp_str += "a=";
     sdp_str += (direction_ == DIRECTION_SENDONLY) ? "sendonly" :
@@ -536,25 +546,27 @@ std::string RtcSdp::GenAudioSdpString(std::shared_ptr<RtcSdpMediaSection> audio_
                (direction_ == DIRECTION_SENDRECV) ? "sendrecv" : "unknown";
     sdp_str += "\r\n";
 
-    sdp_str += "a=ice-lite\r\n";
-    sdp_str += "a=ice-ufrag:" + ice_ufrag_ + "\r\n";
-    sdp_str += "a=ice-pwd:" + ice_pwd_ + "\r\n";
-    sdp_str += "a=fingerprint:" + finger_print_ + "\r\n";
+    if (!ice_info_session_level) {
+        sdp_str += "a=ice-lite\r\n";
+        sdp_str += "a=ice-ufrag:" + ice_ufrag_ + "\r\n";
+        sdp_str += "a=ice-pwd:" + ice_pwd_ + "\r\n";
+        sdp_str += "a=fingerprint:" + finger_print_ + "\r\n";
 
-    for (const auto& candidate : ice_candidates_) {
-        /* a=candidate:0 1 udp 2130706431 192.168.1.100 8000 typ host*/
-        sdp_str += "a=candidate:";
-        sdp_str += std::to_string(candidate.foundation_);
-        sdp_str += " 1 ";
-        sdp_str += ((candidate.net_type_ == RTC_NET_TCP) ? "TCP" :
-                    (candidate.net_type_ == RTC_NET_UDP) ? "UDP" : "UNKNOWN");
-        sdp_str += " ";
-        sdp_str += std::to_string(candidate.priority_);
-        sdp_str += " ";
-        sdp_str += candidate.ip_;
-        sdp_str += " ";
-        sdp_str += std::to_string(candidate.port_);
-        sdp_str += " typ host\r\n";
+        for (const auto& candidate : ice_candidates_) {
+            /* a=candidate:0 1 udp 2130706431 192.168.1.100 8000 typ host*/
+            sdp_str += "a=candidate:";
+            sdp_str += std::to_string(candidate.foundation_);
+            sdp_str += " 1 ";
+            sdp_str += ((candidate.net_type_ == RTC_NET_TCP) ? "TCP" :
+                        (candidate.net_type_ == RTC_NET_UDP) ? "UDP" : "UNKNOWN");
+            sdp_str += " ";
+            sdp_str += std::to_string(candidate.priority_);
+            sdp_str += " ";
+            sdp_str += candidate.ip_;
+            sdp_str += " ";
+            sdp_str += std::to_string(candidate.port_);
+            sdp_str += " typ host\r\n";
+        }
     }
     std::string cname;
     if (audio_section_ptr->cname_.empty()) {
@@ -571,12 +583,12 @@ std::string RtcSdp::GenAudioSdpString(std::shared_ptr<RtcSdpMediaSection> audio_
     for (const auto& ssrc_pair : audio_section_ptr->ssrc_infos_) {
         auto ssrc_info = ssrc_pair.second;
 
-        if (ssrc_info->stream_id_.empty()) {
-            ssrc_info->stream_id_ = "a_" + std::to_string(ssrc_info->ssrc_);
+        if (ssrc_info->track_id_.empty()) {
+            ssrc_info->track_id_ = ssrc_info->stream_id_ + "-audio";
         }
         sdp_str += "a=ssrc:" + std::to_string(ssrc_info->ssrc_) + " cname:" + cname + "\r\n";
         sdp_str += "a=ssrc:" + std::to_string(ssrc_info->ssrc_) + " msid:" 
-            + this->msid_ + " " + ssrc_info->stream_id_ + "\r\n";
+            + ssrc_info->stream_id_ + " " + ssrc_info->track_id_ + "\r\n";
     }
     sdp_str += "a=rtcp-mux\r\n";
     sdp_str += "a=rtcp-rsize\r\n";
@@ -584,7 +596,7 @@ std::string RtcSdp::GenAudioSdpString(std::shared_ptr<RtcSdpMediaSection> audio_
     return sdp_str;
 }
 
-std::string RtcSdp::GenVideoSdpString(std::shared_ptr<RtcSdpMediaSection> video_section_ptr) {
+std::string RtcSdp::GenVideoSdpString(std::shared_ptr<RtcSdpMediaSection> video_section_ptr, bool ice_info_session_level) {
     std::string sdp_str;
     int main_payload = 0;
     int rtx_payload = 0;
@@ -616,24 +628,28 @@ std::string RtcSdp::GenVideoSdpString(std::shared_ptr<RtcSdpMediaSection> video_
             sdp_str += codec->fmtp_param_ + "\r\n";
         }
     }
-    sdp_str += "a=fmtp:" + std::to_string(rtx_payload) + " apt=" + std::to_string(main_payload) + "\r\n";
-
+    if (rtx_payload > 0 && main_payload > 0) {
+        sdp_str += "a=fmtp:" + std::to_string(rtx_payload) + " apt=" + std::to_string(main_payload) + "\r\n";
+    }
+    
     for (const auto& codec_pair : video_section_ptr->media_codecs_) {
         auto codec = codec_pair.second;
         for (const auto& rtcp_fb : codec->rtcp_features_) {
             sdp_str += "a=rtcp-fb:" + std::to_string(codec->payload_type_) + " " + rtcp_fb + "\r\n";
         }
     }
-    sdp_str += "a=rtcp:9 IN IP4 0.0.0.0\r\n";
+    // sdp_str += "a=rtcp:9 IN IP4 0.0.0.0\r\n";
 
     for (const auto& ext_pair : video_section_ptr->extensions_) {
         sdp_str += "a=extmap:" + std::to_string(ext_pair.second->id_) + " " + ext_pair.second->uri_ + "\r\n";
     }
-    sdp_str += "a=setup:";
-    sdp_str += (setup_ == RTC_SETUP_ACTIVE) ? "active" :
-               (setup_ == RTC_SETUP_PASSIVE) ? "passive" :
-               (setup_ == RTC_SETUP_ACTPASS) ? "actpass" : "unknown";
-    sdp_str += "\r\n";
+    if (!ice_info_session_level) {
+        sdp_str += "a=setup:";
+        sdp_str += (setup_ == RTC_SETUP_ACTIVE) ? "active" :
+                   (setup_ == RTC_SETUP_PASSIVE) ? "passive" :
+                   (setup_ == RTC_SETUP_ACTPASS) ? "actpass" : "unknown";
+        sdp_str += "\r\n";
+    }
     sdp_str += "a=mid:" + std::to_string(video_section_ptr->mid_) + "\r\n";
     sdp_str += "a=";
     sdp_str += (direction_ == DIRECTION_SENDONLY) ? "sendonly" :
@@ -641,18 +657,20 @@ std::string RtcSdp::GenVideoSdpString(std::shared_ptr<RtcSdpMediaSection> video_
                (direction_ == DIRECTION_SENDRECV) ? "sendrecv" : "unknown";
     sdp_str += "\r\n";
 
-    sdp_str += "a=ice-lite\r\n";
-    sdp_str += "a=ice-ufrag:" + ice_ufrag_ + "\r\n";
-    sdp_str += "a=ice-pwd:" + ice_pwd_ + "\r\n";
-    sdp_str += "a=fingerprint:" + finger_print_ + "\r\n";
+    if (!ice_info_session_level) {
+        sdp_str += "a=ice-lite\r\n";
+        sdp_str += "a=ice-ufrag:" + ice_ufrag_ + "\r\n";
+        sdp_str += "a=ice-pwd:" + ice_pwd_ + "\r\n";
+        sdp_str += "a=fingerprint:" + finger_print_ + "\r\n";
 
-    for (const auto& candidate : ice_candidates_) {
-        sdp_str += "a=candidate:" + std::to_string(candidate.foundation_) + " 1 " +
-                   ((candidate.net_type_ == RTC_NET_TCP) ? "TCP" :
-                    (candidate.net_type_ == RTC_NET_UDP) ? "UDP" : "UNKNOWN") + " " +
-                   std::to_string(candidate.priority_) + " " +
-                   candidate.ip_ + " " +
-                   std::to_string(candidate.port_) + " typ host\r\n";
+        for (const auto& candidate : ice_candidates_) {
+            sdp_str += "a=candidate:" + std::to_string(candidate.foundation_) + " 1 " +
+                       ((candidate.net_type_ == RTC_NET_TCP) ? "TCP" :
+                        (candidate.net_type_ == RTC_NET_UDP) ? "UDP" : "UNKNOWN") + " " +
+                       std::to_string(candidate.priority_) + " " +
+                       candidate.ip_ + " " +
+                       std::to_string(candidate.port_) + " typ host\r\n";
+        }
     }
 
     uint32_t main_ssrc = 0;
@@ -665,7 +683,10 @@ std::string RtcSdp::GenVideoSdpString(std::shared_ptr<RtcSdpMediaSection> video_
             backup_ssrc = ssrc_info->ssrc_;
         }
     }
-    sdp_str += "a=ssrc-group:FID " + std::to_string(main_ssrc) + " " + std::to_string(backup_ssrc) + "\r\n";
+    if (backup_ssrc > 0) {
+        sdp_str += "a=ssrc-group:FID " + std::to_string(main_ssrc) + " " + std::to_string(backup_ssrc) + "\r\n";
+    }
+    
     std::string cname;
 
     if (video_section_ptr->cname_.empty()) {
@@ -689,12 +710,12 @@ std::string RtcSdp::GenVideoSdpString(std::shared_ptr<RtcSdpMediaSection> video_
         if (ssrc_info->is_main_ == false) {
             continue;
         }
-        if (ssrc_info->stream_id_.empty()) {
-            ssrc_info->stream_id_ = "v_" + std::to_string(ssrc_info->ssrc_);
+        if (ssrc_info->track_id_.empty()) {
+            ssrc_info->track_id_ = ssrc_info->stream_id_ + "-video";
         }
         sdp_str += "a=ssrc:" + std::to_string(ssrc_info->ssrc_) + " cname:" + cname + "\r\n";
         sdp_str += "a=ssrc:" + std::to_string(ssrc_info->ssrc_) + " msid:" 
-            + this->msid_ + " " + ssrc_info->stream_id_ + "\r\n";
+            + ssrc_info->stream_id_ + " " + ssrc_info->track_id_ + "\r\n";
     }
 
     //then backup
@@ -704,12 +725,12 @@ std::string RtcSdp::GenVideoSdpString(std::shared_ptr<RtcSdpMediaSection> video_
         if (ssrc_info->is_main_ == true) {
             continue;
         }
-        if (ssrc_info->stream_id_.empty()) {
-            ssrc_info->stream_id_ = "v_" + std::to_string(ssrc_info->ssrc_);
+        if (ssrc_info->track_id_.empty()) {
+            ssrc_info->track_id_ = ssrc_info->stream_id_ + "-video";
         }
         sdp_str += "a=ssrc:" + std::to_string(ssrc_info->ssrc_) + " cname:" + cname + "\r\n";
         sdp_str += "a=ssrc:" + std::to_string(ssrc_info->ssrc_) + " msid:" 
-            + this->msid_ + " " + ssrc_info->stream_id_ + "\r\n";
+            + ssrc_info->stream_id_ + " " + ssrc_info->track_id_ + "\r\n";
     }
     /*
     for (const auto& ssrc_pair : video_section_ptr->ssrc_infos_) {
@@ -728,7 +749,7 @@ std::string RtcSdp::GenVideoSdpString(std::shared_ptr<RtcSdpMediaSection> video_
     return sdp_str;
 }
 
-std::string RtcSdp::GenSdpString() {
+std::string RtcSdp::GenSdpString(bool ice_info_session_level) {
     std::string sdp_str;
 
     sdp_str += "v=0\r\n";
@@ -736,15 +757,38 @@ std::string RtcSdp::GenSdpString() {
     sdp_str += "s=-\r\n";
     sdp_str += "t=0 0\r\n";
 	sdp_str += "a=extmap-allow-mixed\r\n";
-	sdp_str += "a=msid-semantic: WMS " + msid_ + "\r\n";
+	sdp_str += "a=msid-semantic:WMS " + msid_ + "\r\n";
 	sdp_str += "a=group:BUNDLE 0 1\r\n";
+    sdp_str += "a=group:LS 0 1\r\n";
+    sdp_str += "a=ice-options:ice2,trickle\r\n";
+    
+    if (ice_info_session_level) {
+        sdp_str += "a=ice-lite\r\n";
+        sdp_str += "a=ice-ufrag:" + ice_ufrag_ + "\r\n";
+        sdp_str += "a=ice-pwd:" + ice_pwd_ + "\r\n";
+        sdp_str += "a=fingerprint:" + finger_print_ + "\r\n";
+
+        for (const auto& candidate : ice_candidates_) {
+            sdp_str += "a=candidate:" + std::to_string(candidate.foundation_) + " 1 " +
+                       ((candidate.net_type_ == RTC_NET_TCP) ? "TCP" :
+                        (candidate.net_type_ == RTC_NET_UDP) ? "UDP" : "UNKNOWN") + " " +
+                       std::to_string(candidate.priority_) + " " +
+                       candidate.ip_ + " " +
+                       std::to_string(candidate.port_) + " typ host\r\n";
+        }
+        sdp_str += "a=setup:";
+        sdp_str += (setup_ == RTC_SETUP_ACTIVE) ? "active" :
+                   (setup_ == RTC_SETUP_PASSIVE) ? "passive" :
+                   (setup_ == RTC_SETUP_ACTPASS) ? "actpass" : "unknown";
+        sdp_str += "\r\n";
+    }
 
     for (const auto& media_pair : media_sections_) {
         auto media_section = media_pair.second;
         if (media_section->media_type_ == MEDIA_AUDIO_TYPE) {
-            sdp_str += GenAudioSdpString(media_section);
+            sdp_str += GenAudioSdpString(media_section, ice_info_session_level);
         } else if (media_section->media_type_ == MEDIA_VIDEO_TYPE) {
-            sdp_str += GenVideoSdpString(media_section);
+            sdp_str += GenVideoSdpString(media_section, ice_info_session_level);
         } else {
             throw std::invalid_argument("Unsupported media type in SDP generation");
         }

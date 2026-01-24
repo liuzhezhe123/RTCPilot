@@ -39,8 +39,7 @@ void WebRtcServer::OnRead(const char* data, size_t data_size, UdpTuple address) 
 
     if (StunPacket::IsStun((const uint8_t*)data, data_size)) {
         HandleStunPacket((const uint8_t*)data, data_size, address);
-    }
-    else {
+    } else {
         HandleNoneStunPacket((const uint8_t*)data, data_size, address);
     }
 }
@@ -64,6 +63,27 @@ bool WebRtcServer::OnTimer() {
         WebRtcServer::username2sessions_.erase(ufrag);
     }
     return timer_running_;
+}
+
+void WebRtcServer::RemoveSessionByRoomId(const std::string& room_id) {
+    std::vector<uint64_t> to_remove;
+    std::vector<std::string> ufrag_remove;
+
+    for (auto it = WebRtcServer::addr2sessions_.begin(); it != WebRtcServer::addr2sessions_.end();) {
+        if (it->second->GetRoomId() == room_id) {
+            to_remove.push_back(it->first);
+            ufrag_remove.push_back(it->second->GetIceUfrag());
+            it = WebRtcServer::addr2sessions_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    for (const auto& ufrag : ufrag_remove) {
+        WebRtcServer::username2sessions_.erase(ufrag);
+    }
+    for (const auto& addr : to_remove) {
+        WebRtcServer::addr2sessions_.erase(addr);
+    }
 }
 
 void WebRtcServer::HandleStunPacket(const uint8_t* data, size_t data_size, UdpTuple address) {

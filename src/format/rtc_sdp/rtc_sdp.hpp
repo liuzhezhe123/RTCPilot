@@ -59,9 +59,9 @@ public:
         const std::string& ice_ufrag,
         const std::string& ice_pwd,
         const std::string& finger_print);
-    std::string GenSdpString();
-    std::string GenAudioSdpString(std::shared_ptr<RtcSdpMediaSection> audio_section_ptr);
-    std::string GenVideoSdpString(std::shared_ptr<RtcSdpMediaSection> video_section_ptr);
+    std::string GenSdpString(bool ice_info_session_level = false);
+    std::string GenAudioSdpString(std::shared_ptr<RtcSdpMediaSection> audio_section_ptr, bool ice_info_session_level = false);
+    std::string GenVideoSdpString(std::shared_ptr<RtcSdpMediaSection> video_section_ptr, bool ice_info_session_level = false);
 };
 }
 #endif // RTC_SDP_HPP

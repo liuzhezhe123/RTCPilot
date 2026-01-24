@@ -1,5 +1,6 @@
 ﻿#include "dtls_session.hpp"
 #include "utils/stringex.hpp"
+#include "utils/timeex.hpp"
 #include "srtp_session.hpp"
 #include <openssl/err.h>
 #include <openssl/evp.h>
@@ -409,11 +410,13 @@ Fingerprint DtlsSession::GetLocalFingerprint(FingerprintAlgorithm algorithm) {
     return Fingerprint();
 }
 
-DtlsSession::DtlsSession(DtlsWriteCallbackI* transport, Logger* logger) : transport_(transport)
+DtlsSession::DtlsSession(DtlsWriteCallbackI* transport, Logger* logger) : TimerInterface(100)
+	, transport_(transport)
 	, logger_(logger) {
 }
 
 DtlsSession::~DtlsSession() {
+	StopTimer();
     if (ssl_) {
         SSL_set_ex_data(ssl_, 0, nullptr);
 
@@ -652,10 +655,9 @@ int DtlsSession::InitSession() {
 }
 
 int DtlsSession::Run() {
+	LogInfof(logger_, "DtlsSession Run role:%d", static_cast<int>(role_));
 	if (role_ == Role::ROLE_CLIENT) {
-		SSL_set_connect_state(ssl_);
-		SSL_do_handshake(ssl_);
-		SendDtlsMemData();
+		StartTimer();
 	} else if (role_ == Role::ROLE_SERVER) {
 		SSL_set_accept_state(ssl_);
 		SSL_do_handshake(ssl_);
@@ -958,6 +960,7 @@ void DtlsSession::GenSrtpKeys(SRtpSessionCryptoSuite crypto_suite) {
 	std::memcpy(srtpRemoteMasterKey, srtpRemoteKey, srtpKeyLength);
 	std::memcpy(srtpRemoteMasterKey + srtpKeyLength, srtpRemoteSalt, srtpSaltLength);
 
+	dtls_connected_ = true;
 	this->transport_->OnDtlsTransportConnected(
 	  this,
 	  crypto_suite,
@@ -966,6 +969,27 @@ void DtlsSession::GenSrtpKeys(SRtpSessionCryptoSuite crypto_suite) {
 	  srtpRemoteMasterKey,
 	  srtpMasterLength,
 	  remote_cert_);
+}
+
+//implementation of timer interface
+bool DtlsSession::OnTimer() {
+	const int64_t kDtlsSendIntervalMs = 5*1000;
+	if (!GetIceConnected()) {
+		return true;
+	}
+	if (dtls_connected_) {
+		LogInfof(logger_, "DtlsSession OnTimer dtls connected, stop timer that no need to send handshake data");
+		return false;
+	}
+	int64_t now_ms = now_millisec();
+	if (now_ms - last_dtls_send_ms_ >= kDtlsSendIntervalMs) {
+		last_dtls_send_ms_ = now_ms;
+		LogInfof(logger_, "DtlsSession OnTimer send DTLS handshake data");
+		SSL_set_connect_state(ssl_);
+		SSL_do_handshake(ssl_);
+		SendDtlsMemData();
+	}
+    return true;
 }
 
 } // namespace cpp_streamer

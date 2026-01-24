@@ -9,6 +9,7 @@ namespace cpp_streamer
 HttpSession::HttpSession(uv_loop_t* loop, uv_stream_t* handle, HttpCallbackI* callback, Logger* logger) : callback_(callback)
                                                                                                           , logger_(logger)
 {
+    loop_ = loop;
     request_ = new HttpRequest(this);
     session_ptr_ = std::make_shared<TcpSession>(loop, handle, this, logger);
     remote_address_ = session_ptr_->GetRemoteEndpoint();
@@ -20,6 +21,7 @@ HttpSession::HttpSession(uv_loop_t* loop, uv_stream_t* handle, HttpCallbackI* ca
                 const std::string& key_file, const std::string& cert_file, Logger* logger) : callback_(callback)
                                                                                              , logger_(logger)
 {
+    loop_ = loop;
     request_ = new HttpRequest(this);
     session_ptr_ = std::make_shared<TcpSession>(loop, handle, this, key_file, cert_file, logger);
     remote_address_ = session_ptr_->GetRemoteEndpoint();

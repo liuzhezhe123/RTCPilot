@@ -264,6 +264,9 @@
     <ClCompile Include="..\src\utils\event_log.cpp">
       <Filter>源文件\utils</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\webrtc_room\whip.cpp">
+      <Filter>源文件\webrtc_room</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\utils\base64.hpp">
@@ -580,6 +583,9 @@
     </ClInclude>
     <ClInclude Include="..\src\utils\event_log.hpp">
       <Filter>源文件\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\webrtc_room\whip.hpp">
+      <Filter>源文件\webrtc_room</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -44,6 +44,8 @@ public:
         const std::string& pusher_id, 
         std::string& puller_id);
     bool IsAlive();
+    std::string GetRoomId() const { return room_id_; }
+    std::string GetUserId() const { return user_id_; }
 
 public:
     std::string GetSessionId() { return session_id_;}

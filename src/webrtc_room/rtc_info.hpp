@@ -2,9 +2,11 @@
 #define RTC_INFO_HPP
 #include "utils/json.hpp"
 #include "utils/av/av.hpp"
+#include "utils/stringex.hpp"
 #include <stdint.h>
 #include <string>
 #include <vector>
+#include <map>
 
 namespace cpp_streamer {
 
@@ -17,6 +19,48 @@ typedef enum
     REMOTE_RTC_USER = 2
 } RTC_USER_TYPE;
 
+static bool FmtpParamContain(const std::string& param_a, const std::string& param_b) {
+    //profile-level-id=42e01f;level-asymmetry-allowed=1;packetization-mode=1
+    std::vector<std::string> param_a_vec;
+    std::vector<std::string> param_b_vec;
+    std::map<std::string, std::string> param_a_map;
+    std::map<std::string, std::string> param_b_map;
+    
+    int n = StringSplit(param_a, ";", param_a_vec);
+    if (n <= 0) {
+        return false;
+    }
+    n = StringSplit(param_b, ";", param_b_vec);
+    if (n <= 0) {
+        return false;
+    }
+    for (auto item : param_a_vec) {
+        std::vector<std::string> param_vec;
+        n = StringSplit(item, "=", param_vec);
+        if (n != 2) {
+            return false;
+        }
+        param_a_map[param_vec[0]] = param_vec[1];
+    }
+    for (auto item : param_b_vec) {
+        std::vector<std::string> param_vec;
+        n = StringSplit(item, "=", param_vec);
+        if (n != 2) {
+            return false;
+        }
+        param_b_map[param_vec[0]] = param_vec[1];
+    }
+    for (auto b_item : param_b_map) {
+        auto a_iter = param_a_map.find(b_item.first);
+        if (a_iter == param_a_map.end()) {
+            return false;
+        }
+        if (a_iter->second != b_item.second) {
+            return false;
+        }
+    }
+    return true;
+}
 class RtpSessionParam
 {
 public:

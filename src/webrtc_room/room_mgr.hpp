@@ -49,8 +49,10 @@ public://implement AsyncNotificationCallbackI
 public:
     virtual bool OnTimer() override;
 
-private:
+public:
     std::shared_ptr<Room> GetOrCreateRoom(const std::string& room_id);
+    std::shared_ptr<Room> GetRoom(const std::string& room_id);
+    void RemoveRoom(const std::string& room_id);
     
 private:
     int HandleJoinRequest(int id, nlohmann::json& j, ProtooResponseI* resp_cb);
