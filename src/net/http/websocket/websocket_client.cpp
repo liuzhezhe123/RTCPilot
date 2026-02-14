@@ -268,9 +268,13 @@ void WebSocketClient::HandleWsClose(uint8_t* data, size_t len) {
 
     close_ = true;
     
-    conn_cb_->OnClose(0, "close");
+    if (conn_cb_) {
+        conn_cb_->OnClose(0, "close");
+    }
     is_connected_ = false;
-    client_ptr_->GetTcpClient()->Close();
+    if (client_ptr_->GetTcpClient()) {
+        client_ptr_->GetTcpClient()->Close();
+    }
 }
 
 }

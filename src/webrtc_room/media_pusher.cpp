@@ -2,6 +2,7 @@
 #include "utils/uuid.hpp"
 #include "utils/event_log.hpp"
 #include "net/rtprtcp/rtcp_pspli.hpp"
+#include "config/config.hpp"
 #include <assert.h>
 
 extern std::unique_ptr<cpp_streamer::EventLog> g_rtc_stream_log;
@@ -73,6 +74,19 @@ int MediaPusher::HandleRtpPacket(RtpPacket* rtp_pkt) {
             LogErrorf(logger_, "MediaPusher Handle RtpPacket failed for ssrc:%u, room_id:%s, user_id:%s",
                 ssrc, room_id_.c_str(), user_id_.c_str());
             return -1;
+        }
+        if (Config::Instance().voice_agent_cfg_.enable_ && param_.av_type_ == MEDIA_AUDIO_TYPE) {
+            // forward to voice agent
+            try {
+                if (!voice_agent_ptr_) {
+                    voice_agent_ptr_.reset(new VoiceAgent(room_id_, user_id_, param_.clock_rate_, voice_agent_cb_, loop_, logger_));
+                }
+                RtpPacket* rtp_pkt_copy = rtp_pkt->Clone();
+                voice_agent_ptr_->PushRtpPacket(rtp_pkt_copy);
+            } catch (const std::exception& e) {
+                LogErrorf(logger_, "MediaPusher Handle RtpPacket forward to VoiceAgent exception:%s, \
+room_id:%s, user_id:%s", e.what(), room_id_.c_str(), user_id_.c_str());
+            }
         }
         packet2room_cb_->OnRtpPacketFromRtcPusher(user_id_, session_id_, pusher_id_, rtp_pkt);
         return 0;

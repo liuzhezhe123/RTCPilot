@@ -7,6 +7,8 @@
 #include "net/rtprtcp/rtcp_sr.hpp"
 #include "rtc_info.hpp"
 #include "rtp_recv_session.hpp"
+#include "voice_agent/voice_agent.hpp"
+#include "voice_agent/voice_agent_pub.hpp"
 #include <map>
 #include <memory>
 #include <uv.h>
@@ -38,6 +40,7 @@ public:
     int HandleRtpPacket(RtpPacket* rtp_pkt);
     MEDIA_PKT_TYPE GetMediaType() { return media_type_; }
     const RtpSessionParam& GetRtpSessionParam() { return param_; }
+    void SetVoiceAgentCallback(VoiceAgentCallbackI* cb) { voice_agent_cb_ = cb; }
 
 public:
     int HandleRtcpSrPacket(RtcpSrPacket* sr_pkt);
@@ -61,6 +64,7 @@ private:
     std::string pusher_id_;
     TransportSendCallbackI* cb_ = nullptr;
     PacketFromRtcPusherCallbackI* packet2room_cb_ = nullptr;
+    VoiceAgentCallbackI* voice_agent_cb_ = nullptr;
 
 private:
     std::map<uint32_t, std::shared_ptr<RtpRecvSession>> ssrc2sessions_;
@@ -72,6 +76,9 @@ private:
 private:
     int64_t last_statics_ms_ = -1;
     int64_t last_keyframe_request_ms_ = -1;
+
+private:
+    std::unique_ptr<VoiceAgent> voice_agent_ptr_;
 };
 
 } // namespace cpp_streamer

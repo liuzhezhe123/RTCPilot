@@ -7,9 +7,12 @@
 #include "webrtc_session.hpp"
 #include "udp_transport.hpp"
 #include "rtc_info.hpp"
+#include "voice_agent/voice_agent_pub.hpp"
+#include "voice_agent/va_fake_session.hpp"
 #include <map>
 #include <memory>
 #include <vector>
+#include <mutex>
 #include <uv.h>
 
 namespace cpp_streamer {
@@ -23,7 +26,8 @@ class RtcSendRelay;
 class Room : public TimerInterface, 
     public PacketFromRtcPusherCallbackI, 
     public MediaPushPullEventI,
-    public AsyncRequestCallbackI
+    public AsyncRequestCallbackI,
+    public VoiceAgentCallbackI
 {
 public:
     Room(const std::string& room_id, 
@@ -98,6 +102,24 @@ public:
 public://implement AsyncRequestCallbackI
     virtual void OnAsyncRequestResponse(int id, const std::string& method, json& resp_json) override;
     
+protected://implement VoiceAgentCallbackI
+    virtual void OnVoiceAgentRecognizedText(const std::string& room_id,
+        const std::string& user_id,
+        const std::string& text,
+        int64_t ts) override;
+    virtual void OnVoiceAgentResponseText(const std::string& room_id,
+        const std::string& user_id,
+        const std::string& text,
+        int64_t ts) override;
+    virtual void OnVoiceAgentAiOpusData(const std::vector<uint8_t>& opus_data, 
+        int sample_rate, int channels, int64_t pts, int current_index) override;
+    virtual void OnVoiceAgentConversationStart(const std::string& room_id,
+        const std::string& conversation_id,
+        int64_t ts) override;
+    virtual void OnVoiceAgentConversationEnd(const std::string& room_id,
+        const std::string& conversation_id,
+        int64_t ts) override;
+
 protected:
     virtual bool OnTimer() override;
 
@@ -127,6 +149,13 @@ private:
     std::shared_ptr<RtcRecvRelay> CreateOrGetRecvRtcRelay(const std::string& pusher_user_id, const PushInfo& push_info);
     void ReleaseUserResources(const std::string& user_id);
 
+private: // for voice agent
+    void VoiceAgentAiJoin();
+    int VoiceAgentPushVoice();
+    RtpPacket* GenRtpPacketFromOpusData(uint8_t* opus_data, size_t opus_data_len);
+    void OnSendVoiceAgentRtpPacket(int64_t now_ms);
+    void ClearVoiceAgentRtpPacketsNoLock();
+
 private:
     std::string room_id_;
     PilotClientI* pilot_client_ = nullptr;
@@ -145,6 +174,21 @@ private:
     std::map<std::string, std::shared_ptr<RtcRecvRelay>> pusher_user_id2recvRelay_;
     // pusher_user_id -> RtcSendRelay
     std::map<std::string, std::shared_ptr<RtcSendRelay>> pusher_user_id2sendRelay_;
+
+private:// for voice agent
+    std::string voice_agent_ai_id_;
+    bool voice_agent_ai_joined_ = false;
+    bool voice_agent_ai_pushed_ = false;
+    std::unique_ptr<VaFakeSession> va_fake_session_ptr_;
+    std::shared_ptr<MediaPusher> voice_agent_pusher_ptr_;
+    uint16_t va_rtp_seq_ = 0;
+    const uint32_t va_rtp_ssrc_ = 1000;
+    uint32_t va_rtp_timestamp_ = 0;
+    std::mutex va_rtp_packets_mutex_;
+    std::map<int, std::queue<RtpPacket*>> va_rtp_packets_;//current_index -> rtp packets
+    int64_t last_send_va_rtp_ms_ = -1;
+    int64_t last_send_va_sys_ms_ = -1;
+    int current_index_ = -1;
 };
 
 } // namespace cpp_streamer

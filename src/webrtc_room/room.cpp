@@ -6,6 +6,7 @@
 #include "rtp_session.hpp"
 #include "format/rtc_sdp/rtc_sdp.hpp"
 #include "format/rtc_sdp/rtc_sdp_filter.hpp"
+#include "net/rtprtcp/rtp_pack.hpp"
 #include "utils/uuid.hpp"
 #include "utils/event_log.hpp"
 #include "config/config.hpp"
@@ -21,7 +22,7 @@ extern std::vector<RtpSessionParam> GetRtpSessionParamsFromSdp(const RtcSdp& sdp
 Room::Room(const std::string& room_id, 
     PilotClientI* pilot_client,
     uv_loop_t* loop, 
-    Logger* logger) : TimerInterface(1000)
+    Logger* logger) : TimerInterface(10)
 {
     room_id_ = room_id;
     pilot_client_ = pilot_client;
@@ -40,8 +41,9 @@ Room::~Room() {
 
 bool Room::OnTimer() {
     // Check heartbeat of users
+    int64_t now_ms = now_millisec();
     if (!users_.empty()) {
-        last_alive_ms_ = now_millisec();
+        last_alive_ms_ = now_ms;
     }
     std::vector<std::string> rm_user_ids;
     for (const auto& pair : users_) {
@@ -80,6 +82,8 @@ bool Room::OnTimer() {
             rm_puller_user_ids[i].c_str(), room_id_.c_str());
         pusher_user_id2recvRelay_.erase(rm_puller_user_ids[i]);
     }
+
+    OnSendVoiceAgentRtpPacket(now_ms);
     return timer_running_;
 }
 
@@ -547,6 +551,11 @@ int Room::HandleWhipPushSdp(const std::string& user_id,
             auto media_pushers = webrtc_session_ptr->GetMediaPushers();
             for (const auto& media_pusher : media_pushers) {
                 pusherId2pusher_[media_pusher->GetPusherId()] = media_pusher;
+                if (Config::Instance().voice_agent_cfg_.enable_) {
+                    LogInfof(logger_, "Setting voice agent callback for pusher_id:%s, room_id:%s",
+                        media_pusher->GetPusherId().c_str(), room_id_.c_str());
+                    media_pusher->SetVoiceAgentCallback(this);
+                }
             }
         }
     } catch(const std::exception& e) {
@@ -665,6 +674,11 @@ int Room::HandlePushSdp(const std::string& user_id,
             auto media_pushers = webrtc_session_ptr->GetMediaPushers();
             for (const auto& media_pusher : media_pushers) {
                 pusherId2pusher_[media_pusher->GetPusherId()] = media_pusher;
+                if (Config::Instance().voice_agent_cfg_.enable_) {
+                    LogInfof(logger_, "Setting voice agent callback for pusher_id:%s, room_id:%s",
+                        media_pusher->GetPusherId().c_str(), room_id_.c_str());
+                    media_pusher->SetVoiceAgentCallback(this);
+                }
             }
         }
     } catch(const std::exception& e) {
@@ -1029,7 +1043,7 @@ int Room::SendPullRequestToPilotCenter(const std::string& pusher_user_id,
 
 void Room::OnRtpPacketFromRtcPusher(const std::string& user_id, const std::string& session_id,
         const std::string& pusher_id, RtpPacket* rtp_packet) {
-    LogDebugf(logger_, "OnRtpPacketFromRtcPusher, room_id:%s, user_id:%s, session_id:%s, pusher_id:%s, len:%zu, ssrc:%u, pt:%d, seq:%d",
+    LogDebugf(logger_, "RtpPacket from RtcPusher, room_id:%s, user_id:%s, session_id:%s, pusher_id:%s, len:%zu, ssrc:%u, pt:%d, seq:%d",
         room_id_.c_str(), user_id.c_str(), session_id.c_str(), pusher_id.c_str(), 
         rtp_packet->GetDataLength(), rtp_packet->GetSsrc(), rtp_packet->GetPayloadType(), rtp_packet->GetSeq());
     last_alive_ms_ = now_millisec();
@@ -1831,6 +1845,282 @@ void Room::NotifyTextMessage2LocalUsers(const std::string& from_user_id, const s
             resp_cb->Notification("textMessage", notify_json);
         }
     }
+}
+
+void Room::OnVoiceAgentRecognizedText(const std::string& room_id,
+        const std::string& user_id,
+        const std::string& text,
+        int64_t ts) {
+    LogInfof(logger_, "OnVoiceAgentRecognizedText called, room_id:%s, user_id:%s, text:%s, ts:%lld",
+        room_id.c_str(), user_id.c_str(), text.c_str(), ts);
+
+    std::string ai_uid = user_id + "_input";
+    std::string ai_name;
+    auto ai_user_it = users_.find(user_id);
+    if (ai_user_it != users_.end()) {
+        ai_name = ai_user_it->second->GetUserName();
+    } else {
+        ai_name = user_id;
+    }
+    ai_name += "_input";
+
+    NotifyTextMessage2LocalUsers(ai_uid, ai_name, text);
+    NotifyTextMessage2PilotCenter(ai_uid, ai_name, text);
+}
+
+void Room::OnVoiceAgentResponseText(const std::string& room_id,
+        const std::string& user_id,
+        const std::string& text,
+        int64_t ts) {
+    LogInfof(logger_, "OnVoiceAgentResponseText called, room_id:%s, user_id:%s, text:%s, ts:%lld",
+        room_id.c_str(), user_id.c_str(), text.c_str(), ts);
+
+    NotifyTextMessage2LocalUsers(user_id, user_id, text);
+    NotifyTextMessage2PilotCenter(user_id, user_id, text);
+}
+
+void Room::OnVoiceAgentAiOpusData(const std::vector<uint8_t>& opus_data, 
+        int sample_rate, int channels, int64_t pts, int current_index) {
+    try {
+        std::lock_guard<std::mutex> lock(va_rtp_packets_mutex_);
+        RtpPacket* rtp_packet = GenRtpPacketFromOpusData(const_cast<uint8_t*>(opus_data.data()), opus_data.size());
+        if (!rtp_packet) {
+            LogErrorf(logger_, "GenRtpPacketFromOpusData failed, room_id:%s",
+                room_id_.c_str());
+            return;
+        }
+        auto it = va_rtp_packets_.find(current_index);
+        if (it == va_rtp_packets_.end()) {
+            ClearVoiceAgentRtpPacketsNoLock();
+        }
+        va_rtp_packets_[current_index].push(rtp_packet);
+    } catch (const std::exception& e) {
+        LogErrorf(logger_, "SendRtpPacket failed, room_id:%s, error:%s",
+            room_id_.c_str(), e.what());
+    }
+}
+
+void Room::OnVoiceAgentConversationStart(const std::string& room_id,
+        const std::string& conversation_id,
+        int64_t ts)
+{
+    LogInfof(logger_, "OnVoiceAgentConversationStart called, room_id:%s, conversation_id:%s, ts:%lld",
+        room_id.c_str(), conversation_id.c_str(), ts);
+    std::lock_guard<std::mutex> lock(va_rtp_packets_mutex_);
+    ClearVoiceAgentRtpPacketsNoLock();
+}
+
+void Room::OnVoiceAgentConversationEnd(const std::string& room_id,
+        const std::string& conversation_id,
+        int64_t ts)
+{
+    LogInfof(logger_, "OnVoiceAgentConversationEnd called, room_id:%s, conversation_id:%s, ts:%lld",
+        room_id.c_str(), conversation_id.c_str(), ts);
+}
+
+void Room::VoiceAgentAiJoin() {
+    if (voice_agent_ai_id_.empty()) {
+        voice_agent_ai_id_ = "ai_" + room_id_;
+    }
+    if (voice_agent_ai_joined_) {
+        return;
+    }
+    std::string user_id = voice_agent_ai_id_;
+    std::string user_name = voice_agent_ai_id_;
+    bool audience = false;
+
+    if (closed_) {
+        LogErrorf(logger_, "Room is closed, cannot join, room_id:%s", room_id_.c_str());
+        return;
+    }
+
+    last_alive_ms_ = now_millisec();
+    std::shared_ptr<RtcUser> new_user = std::make_shared<RtcUser>(room_id_, user_id, user_name, audience, nullptr, logger_);
+    LogInfof(logger_, "voice agent ai user joining room, user_id:%s, room_id:%s", 
+            user_id.c_str(), room_id_.c_str());
+        
+    users_[user_id] = new_user;
+    
+    if (g_rtc_event_log) {
+        json evt_data;
+        evt_data["event"] = "join";
+        evt_data["room_id"] = room_id_;
+        evt_data["user_id"] = user_id;
+        evt_data["reconnect"] = false;
+        evt_data["audience"] = audience;
+        g_rtc_event_log->Log("join", evt_data);
+    }
+
+    Join2PilotCenter(new_user);
+
+    //notify other users
+    NotifyNewUser(user_id, user_name);
+    voice_agent_ai_joined_ = true;
+    return;
+}
+
+int Room::VoiceAgentPushVoice() {
+    if (voice_agent_ai_pushed_) {
+        return 0;
+    }
+    RtpSessionParam voice_rtp_param;
+
+    // set up RTP parameters for voice agent: sample rate 48000, channels 2, payload type 111 (Opus)
+    voice_rtp_param.av_type_ = MEDIA_AUDIO_TYPE;
+    voice_rtp_param.mid_ = 0;
+    voice_rtp_param.ssrc_ = va_rtp_ssrc_;
+    voice_rtp_param.payload_type_ = 111;
+    voice_rtp_param.channel_ = 2;
+    voice_rtp_param.clock_rate_ = 48000;
+    voice_rtp_param.rtx_ssrc_ = 0;
+    voice_rtp_param.rtx_payload_type_ = 0;
+    voice_rtp_param.use_nack_ = false;
+    voice_rtp_param.key_request_ = false;
+    voice_rtp_param.mid_ext_id_ = -1;
+    voice_rtp_param.tcc_ext_id_ = -1;
+    voice_rtp_param.abs_send_time_ext_id_ = -1;
+    voice_rtp_param.codec_name_ = "opus";
+    voice_rtp_param.fmtp_param_ = "minptime=10;useinbandfec=1";
+
+    if (!va_fake_session_ptr_) {
+        va_fake_session_ptr_ = std::make_unique<VaFakeSession>(room_id_, voice_agent_ai_id_, logger_);
+    }
+
+    voice_agent_pusher_ptr_ = std::make_shared<MediaPusher>(
+        voice_rtp_param,
+        room_id_, 
+        voice_agent_ai_id_, 
+        va_fake_session_ptr_->GetSessionId(), 
+        va_fake_session_ptr_.get(), 
+        this,
+        loop_,
+        logger_);
+    
+    pusherId2pusher_.emplace(voice_agent_pusher_ptr_->GetPusherId(), voice_agent_pusher_ptr_);
+    auto it = users_.find(voice_agent_ai_id_);
+    if (it != users_.end()) {
+        PushInfo push_info;
+        push_info.pusher_id_ = voice_agent_pusher_ptr_->GetPusherId();
+        push_info.param_ = voice_rtp_param;
+        
+        it->second->UpdateHeartbeat();
+        it->second->AddPusher(voice_agent_pusher_ptr_->GetPusherId(), push_info);
+    }
+
+    std::vector<PushInfo> push_infos;
+    std::map<std::string, PushInfo> pusher_map = it->second->GetPushers();
+    for (const auto& pair : pusher_map) {
+        push_infos.push_back(pair.second);
+    }
+    std::string user_name = it->second->GetUserName();
+
+    LogInfof(logger_, "Voice agent AI start pushing voice, room_id:%s, user_id:%s, pusher_id:%s",
+        room_id_.c_str(), voice_agent_ai_id_.c_str(), voice_agent_pusher_ptr_->GetPusherId().c_str());
+    //notify to local other users
+    NotifyNewPusher(voice_agent_ai_id_, user_name, push_infos);
+
+    NewPusher2PilotCenter(voice_agent_ai_id_, push_infos);
+    voice_agent_ai_pushed_ = true;
+    return 0;
+}
+
+RtpPacket* Room::GenRtpPacketFromOpusData(uint8_t* opus_data, size_t opus_data_len) {
+    RtpPacket* rtp_packet = GenerateSinglePackets(opus_data, opus_data_len, nullptr);
+    if (!rtp_packet) {
+        return nullptr;
+    }
+    rtp_packet->SetPayloadType(111); //Opus payload type
+    rtp_packet->SetTimestamp(va_rtp_timestamp_);
+    rtp_packet->SetMarker(true);
+    rtp_packet->SetSsrc(va_rtp_ssrc_);
+    rtp_packet->SetSeq(va_rtp_seq_++);
+
+    va_rtp_timestamp_ += 960; //20ms frame at 48kHz
+
+    return rtp_packet;
+}
+
+void Room::OnSendVoiceAgentRtpPacket(int64_t now_ms) {
+    try {
+        VoiceAgentAiJoin();
+    } catch (const std::exception& e) {
+        LogErrorf(logger_, "VoiceAgentAiJoin exception, room_id:%s, error:%s",
+            room_id_.c_str(), e.what());
+        return;
+    }
+
+    if (!voice_agent_ai_joined_) {
+        LogErrorf(logger_, "Voice agent AI has not joined the room, cannot send opus data, room_id:%s",
+            room_id_.c_str());
+        return;
+    }
+
+    try {
+        VoiceAgentPushVoice();
+    } catch (const std::exception& e) {
+        LogErrorf(logger_, "VoiceAgentPushVoice exception, room_id:%s, error:%s",
+            room_id_.c_str(), e.what());
+        return;
+    }
+
+    try {
+        std::lock_guard<std::mutex> lock(va_rtp_packets_mutex_);
+        if (va_rtp_packets_.empty()) {
+            return;
+        }
+        auto it = va_rtp_packets_.begin();
+        auto &packet_queue = it->second;
+        while (!packet_queue.empty()) {
+            if (current_index_ < 0) {
+                current_index_ = it->first;
+            } else {
+                if (it->first != current_index_) {
+                    last_send_va_rtp_ms_ = -1;
+                    last_send_va_sys_ms_ = -1;
+                    current_index_ = it->first;
+                }
+            }
+            RtpPacket* rtp_packet = packet_queue.front();
+            if (last_send_va_rtp_ms_ < 0) {
+                last_send_va_rtp_ms_ = rtp_packet->GetTimestamp() * 1000 / 48000; //convert RTP timestamp to ms
+                last_send_va_sys_ms_ = now_ms;
+                packet_queue.pop();
+                LogInfof(logger_, "send first voice agent roomId:%s, rtp packet:%s, now_ms:%ld",
+                    room_id_.c_str(), rtp_packet->Dump().c_str(), now_ms);
+                OnRtpPacketFromRtcPusher(voice_agent_ai_id_, va_fake_session_ptr_->GetSessionId(), voice_agent_pusher_ptr_->GetPusherId(), rtp_packet);
+            } else {
+                int64_t diff_ms = (now_ms - last_send_va_sys_ms_) - (rtp_packet->GetTimestamp() * 1000 / 48000 - last_send_va_rtp_ms_);
+                if (diff_ms >= 0) {
+                    packet_queue.pop();
+                    OnRtpPacketFromRtcPusher(voice_agent_ai_id_, va_fake_session_ptr_->GetSessionId(), voice_agent_pusher_ptr_->GetPusherId(), rtp_packet);
+                } else {
+                    //the next packet is not ready to send
+                    break;
+                }
+            }
+        }
+        if (packet_queue.empty()) {
+            it = va_rtp_packets_.erase(it);
+        }
+    } catch (const std::exception& e) {
+        LogErrorf(logger_, "OnSendVoiceAgentRtpPacket exception, room_id:%s, error:%s",
+            room_id_.c_str(), e.what());
+        return;
+    }
+}
+
+void Room::ClearVoiceAgentRtpPacketsNoLock() {
+    LogInfof(logger_, "Clear Voice Agent RtpPackets called, room_id:%s, current_index:%d",
+        room_id_.c_str(), current_index_);
+    for (auto it = va_rtp_packets_.begin(); it != va_rtp_packets_.end(); ++it) {
+        auto& rtp_packet_queue = it->second;
+        while (!rtp_packet_queue.empty()) {
+            RtpPacket* pkt = rtp_packet_queue.front();
+            rtp_packet_queue.pop();
+            delete pkt;
+        }
+    }
+    va_rtp_packets_.clear();
 }
 
 } // namespace cpp_streamer

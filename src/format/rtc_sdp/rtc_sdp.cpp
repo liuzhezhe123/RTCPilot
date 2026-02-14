@@ -751,15 +751,19 @@ std::string RtcSdp::GenVideoSdpString(std::shared_ptr<RtcSdpMediaSection> video_
 
 std::string RtcSdp::GenSdpString(bool ice_info_session_level) {
     std::string sdp_str;
+    std::string group_str = "a=group:BUNDLE";
 
+    for (const auto& media_pair : media_sections_) {
+        group_str += " " + std::to_string(media_pair.second->mid_);
+    }
     sdp_str += "v=0\r\n";
     sdp_str += "o=" + origin_ + "\r\n";
     sdp_str += "s=-\r\n";
     sdp_str += "t=0 0\r\n";
 	sdp_str += "a=extmap-allow-mixed\r\n";
 	sdp_str += "a=msid-semantic:WMS " + msid_ + "\r\n";
-	sdp_str += "a=group:BUNDLE 0 1\r\n";
-    sdp_str += "a=group:LS 0 1\r\n";
+	sdp_str += group_str + "\r\n";
+    
     sdp_str += "a=ice-options:ice2,trickle\r\n";
     
     if (ice_info_session_level) {

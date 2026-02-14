@@ -655,3 +655,6 @@ massif.*
 
 .github
 .github/*
+
+matcha-icefall-zh-baker
+vocos-22khz-univ.onnx

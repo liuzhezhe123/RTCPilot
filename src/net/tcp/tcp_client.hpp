@@ -223,11 +223,14 @@ public:
         if (!is_connect_) {
             return;
         }
-        ssl_client_->ResetState();
+        if (ssl_client_) {
+            ssl_client_->ResetState();
+        }
         is_connect_ = false;
-        
-        uv_read_stop(connect_->handle);
-        connect_->handle->data = nullptr;
+        if (connect_) {
+            uv_read_stop(connect_->handle);
+            connect_->handle->data = nullptr;
+        }
     }
 
     bool IsConnect() {

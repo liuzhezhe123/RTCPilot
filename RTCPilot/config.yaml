@@ -39,11 +39,11 @@ ws_stream_server:
 #candidates: [{nettype, ip, port}]
 candidates:
   - nettype: "udp"
-    candidate_ip: "192.168.1.86"
+    candidate_ip: "192.168.1.221"
     listen_ip: "0.0.0.0"
     port: 5000
   - nettype: "udp"
-    candidate_ip: "192.168.1.86"
+    candidate_ip: "192.168.1.221"
     listen_ip: "0.0.0.0"
     port: 6000
 
@@ -62,14 +62,34 @@ downlink_discard_percent: 0
 uplink_discard_percent: 0
 
 pilot_center:
-  enable: true
-  host: "192.168.1.86"
+  enable: false
+  host: "192.168.1.221"
   port: 9443
   subpath: "/pilot/center"
 
 rtc_relay:
-  relay_server_ip: "192.168.1.86"
+  relay_server_ip: "192.168.1.221"
   relay_udp_start: 10000
   relay_udp_end: 19999
   send_discard_percent: 0
   recv_discard_percent: 0
+
+voice_agent:
+  enable: true
+  agent_ip: "192.168.1.221"
+  agent_port: 5555
+  subpath: "/voiceagent"
+
+  # how to download:
+  # wget https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/matcha-icefall-zh-baker.tar.bz2
+  # tar xvf matcha-icefall-zh-baker.tar.bz2
+  # rm matcha-icefall-zh-baker.tar.bz2  
+  # wget https://github.com/k2-fsa/sherpa-onnx/releases/download/vocoder-models/vocos-22khz-univ.onnx
+  tts_config:
+    tts_enable: true
+    acoustic_model: "./matcha-icefall-zh-baker/model-steps-3.onnx"
+    vocoder: "./vocos-22khz-univ.onnx"
+    lexicon: "./matcha-icefall-zh-baker/lexicon.txt"
+    tokens: "./matcha-icefall-zh-baker/tokens.txt"
+    dict_dir: "./matcha-icefall-zh-baker/dict"
+    num_threads: 1

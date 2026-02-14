@@ -189,7 +189,50 @@ int Config::LoadConfig(const std::string& config_file) {
                 ws_stream_cfg_.port_ = ws_stream_node["port"].as<uint16_t>();
             }
         }
-
+        // Voice Agent configuration
+        auto voice_agent_node = config["voice_agent"];
+        if (voice_agent_node) {
+            if (voice_agent_node["enable"]) {
+                voice_agent_cfg_.enable_ = voice_agent_node["enable"].as<bool>();
+            } else {
+                voice_agent_cfg_.enable_ = false;
+            }
+            if (voice_agent_node["agent_ip"]) {
+                voice_agent_cfg_.agent_ip_ = voice_agent_node["agent_ip"].as<std::string>();
+            }
+            if (voice_agent_node["agent_port"]) {
+                voice_agent_cfg_.agent_port_ = voice_agent_node["agent_port"].as<uint16_t>();
+            }
+            if (voice_agent_node["subpath"]) {
+                voice_agent_cfg_.agent_subpath_ = voice_agent_node["subpath"].as<std::string>();
+            }
+            auto tts_node = voice_agent_node["tts_config"];
+            if (tts_node) {
+                if (tts_node["tts_enable"]) {
+                    voice_agent_cfg_.tts_config_.tts_enable_ = tts_node["tts_enable"].as<bool>();
+                } else {
+                    voice_agent_cfg_.tts_config_.tts_enable_ = false;
+                }
+                if (tts_node["acoustic_model"]) {
+                    voice_agent_cfg_.tts_config_.acoustic_model_ = tts_node["acoustic_model"].as<std::string>();
+                }
+                if (tts_node["vocoder"]) {
+                    voice_agent_cfg_.tts_config_.vocoder_ = tts_node["vocoder"].as<std::string>();
+                }
+                if (tts_node["lexicon"]) {
+                    voice_agent_cfg_.tts_config_.lexicon_ = tts_node["lexicon"].as<std::string>();
+                }
+                if (tts_node["tokens"]) {
+                    voice_agent_cfg_.tts_config_.tokens_ = tts_node["tokens"].as<std::string>();
+                }
+                if (tts_node["dict_dir"]) {
+                    voice_agent_cfg_.tts_config_.dict_dir_ = tts_node["dict_dir"].as<std::string>();
+                }
+                if (tts_node["num_threads"]) {
+                    voice_agent_cfg_.tts_config_.num_threads_ = tts_node["num_threads"].as<int32_t>();
+                }
+            }
+        }
 		ret = 0;
     } catch(const std::exception& e) {
         std::cerr << e.what() << '\n';
@@ -286,5 +329,19 @@ std::string Config::Dump() {
     dump_str += "  listen_ip: " + ws_stream_cfg_.listen_ip_ + "\n";
     dump_str += "  port: " + std::to_string(ws_stream_cfg_.port_) + "\n";
 
+    // voice agent configuration
+    dump_str += "voice_agent:\n";
+    dump_str += "  enable: " + std::string(voice_agent_cfg_.enable_ ? "true" : "false") + "\n";
+    dump_str += "  agent_ip: " + voice_agent_cfg_.agent_ip_ + "\n";
+    dump_str += "  agent_port: " + std::to_string(voice_agent_cfg_.agent_port_) + "\n";
+    dump_str += "  subpath: " + voice_agent_cfg_.agent_subpath_ + "\n";
+    dump_str += "  tts_config:\n";
+    dump_str += "    tts_enable: " + std::string(voice_agent_cfg_.tts_config_.tts_enable_ ? "true" : "false") + "\n";
+    dump_str += "    acoustic_model: " + voice_agent_cfg_.tts_config_.acoustic_model_ + "\n";
+    dump_str += "    vocoder: " + voice_agent_cfg_.tts_config_.vocoder_ + "\n";
+    dump_str += "    lexicon: " + voice_agent_cfg_.tts_config_.lexicon_ + "\n";
+    dump_str += "    tokens: " + voice_agent_cfg_.tts_config_.tokens_ + "\n";
+    dump_str += "    dict_dir: " + voice_agent_cfg_.tts_config_.dict_dir_ + "\n";
+    dump_str += "    num_threads: " + std::to_string(voice_agent_cfg_.tts_config_.num_threads_) + "\n";
     return dump_str;
 }

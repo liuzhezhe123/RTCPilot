@@ -174,6 +174,39 @@ private:
     Logger* logger_ = nullptr;
 };
 
+typedef enum 
+{
+    NORMAL_SEQ = 0,
+    REPEAT_SEQ = 1,
+    JUMP_LARGE_SEQ = 2,
+    REVERSE_SEQ = 3,
+    DISCORD_SEQ = 4,
+    LITTLE_JUMP_SEQ = 5,
+} SEQ_COMPARE_RESULT;
+
+inline SEQ_COMPARE_RESULT CompareSeq(uint16_t last_seq, uint16_t current_seq) {
+    if (current_seq == last_seq) {
+        return REPEAT_SEQ;
+    } else if (current_seq == last_seq + 1) {
+        return NORMAL_SEQ;
+    }
+    
+    const uint16_t MAX_GAP = 3000;
+    if (current_seq < last_seq) {
+        if (last_seq - current_seq > MAX_GAP) {
+            return REVERSE_SEQ;
+        }
+        return NORMAL_SEQ;
+    } else {
+        if (current_seq > last_seq + MAX_GAP) {
+            return JUMP_LARGE_SEQ;
+        } else {
+            return LITTLE_JUMP_SEQ;
+        }
+    }
+    return DISCORD_SEQ;
+}
+
 }
 
 #endif

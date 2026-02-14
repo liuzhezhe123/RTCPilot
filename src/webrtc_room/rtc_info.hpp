@@ -19,7 +19,7 @@ typedef enum
     REMOTE_RTC_USER = 2
 } RTC_USER_TYPE;
 
-static bool FmtpParamContain(const std::string& param_a, const std::string& param_b) {
+inline bool FmtpParamContain(const std::string& param_a, const std::string& param_b) {
     //profile-level-id=42e01f;level-asymmetry-allowed=1;packetization-mode=1
     std::vector<std::string> param_a_vec;
     std::vector<std::string> param_b_vec;

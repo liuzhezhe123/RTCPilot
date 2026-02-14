@@ -137,6 +137,43 @@ public:
     std::string rtc_stream_log_path_;
 };
 
+/*
+how to download models:
+wget https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/matcha-icefall-zh-baker.tar.bz2
+tar xvf matcha-icefall-zh-baker.tar.bz2
+rm matcha-icefall-zh-baker.tar.bz2
+*/
+class TtsConfig
+{
+public:
+    TtsConfig() = default;
+    ~TtsConfig() = default;
+public:
+    bool        tts_enable_ = false;
+    std::string acoustic_model_;
+    std::string vocoder_;
+    std::string lexicon_;
+    std::string tokens_;
+    std::string dict_dir_;
+    int32_t num_threads_ = 1;
+};
+
+class VoiceAgentConfig
+{
+public:
+    VoiceAgentConfig() = default;
+    ~VoiceAgentConfig() = default;
+
+public:
+    bool        enable_ = false;
+    std::string agent_ip_;
+    uint16_t    agent_port_ = 0;
+    std::string agent_subpath_;
+
+public:
+    TtsConfig   tts_config_;
+};
+
 class Config
 {
 public:
@@ -178,6 +215,9 @@ public:
 public:
     uint32_t downlink_discard_percent_ = 0;
     uint32_t uplink_discard_percent_ = 0;
+
+public:
+    VoiceAgentConfig voice_agent_cfg_;
 
 private:
     Config() {}
