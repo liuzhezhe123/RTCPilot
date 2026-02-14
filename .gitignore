@@ -658,3 +658,6 @@ massif.*
 
 matcha-icefall-zh-baker
 vocos-22khz-univ.onnx
+
+voice_agent/funasr_models
+funasr_models/
