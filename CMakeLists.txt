@@ -197,26 +197,8 @@ add_executable(RTCPilot
 
             ${PROJECT_SOURCE_DIR}/src/webrtc_room/voice_agent/voice_agent.hpp
             ${PROJECT_SOURCE_DIR}/src/webrtc_room/voice_agent/voice_agent.cpp
-            ${PROJECT_SOURCE_DIR}/src/webrtc_room/voice_agent/tts.hpp
-            ${PROJECT_SOURCE_DIR}/src/webrtc_room/voice_agent/tts.cpp
-            ${PROJECT_SOURCE_DIR}/src/webrtc_room/voice_agent/pcm2opus.hpp
-            ${PROJECT_SOURCE_DIR}/src/webrtc_room/voice_agent/pcm2opus.cpp
             ${PROJECT_SOURCE_DIR}/src/webrtc_room/voice_agent/va_fake_session.hpp
             ${PROJECT_SOURCE_DIR}/src/webrtc_room/voice_agent/va_fake_session.cpp
-
-            ${PROJECT_SOURCE_DIR}/src/transcode/decoder/decoder.cpp
-            ${PROJECT_SOURCE_DIR}/src/transcode/decoder/decoder.h
-            ${PROJECT_SOURCE_DIR}/src/transcode/filter/audio_filter.cpp
-            ${PROJECT_SOURCE_DIR}/src/transcode/filter/audio_filter.h
-            ${PROJECT_SOURCE_DIR}/src/transcode/filter/filter_base.cpp
-            ${PROJECT_SOURCE_DIR}/src/transcode/filter/filter_base.h
-            ${PROJECT_SOURCE_DIR}/src/transcode/filter/media_filter.cpp
-            ${PROJECT_SOURCE_DIR}/src/transcode/filter/media_filter.h
-            ${PROJECT_SOURCE_DIR}/src/transcode/filter/video_filter.cpp
-            ${PROJECT_SOURCE_DIR}/src/transcode/filter/video_filter.h
-            ${PROJECT_SOURCE_DIR}/src/transcode/encoder/encoder.cpp
-            ${PROJECT_SOURCE_DIR}/src/transcode/encoder/encoder.h
-            ${PROJECT_SOURCE_DIR}/src/transcode/ffmpeg_include.h
 
             ${PROJECT_SOURCE_DIR}/src/utils/av/av.hpp
             ${PROJECT_SOURCE_DIR}/src/ws_stream/ws_play_session.hpp
@@ -258,35 +240,19 @@ add_executable(RTCPilot
             ${PROJECT_SOURCE_DIR}/src/RTCPilot.cpp
 
             )
-add_dependencies(RTCPilot openssl uv srtp2-ext yaml-cpp libffmpeg sherpa-onnx-cxx-api)
+add_dependencies(RTCPilot openssl uv srtp2-ext yaml-cpp)
 IF (APPLE)
 target_link_libraries(RTCPilot dl z bz2 iconv 
                     ${PREFIX_DIR}/lib/libopus.a 
                     ${PREFIX_DIR}/lib/libx264.a 
                     ssl crypto srtp2 uv yaml-cpp 
-                    avcodec avformat avutil swscale avfilter avdevice swresample
-                    sherpa-onnx-cxx-api)
-# Link macOS frameworks required by FFmpeg
-target_link_libraries(RTCPilot
-    "-framework AudioToolbox"
-    "-framework CoreMedia"
-    "-framework CoreFoundation"
-    "-framework CoreAudio"
-    "-framework VideoToolbox"
-    "-framework Security"
-    "-framework CoreGraphics"
-    "-framework AppKit"
-    "-framework CoreVideo"
-    "-framework OpenGL"
-    "-framework CoreImage"
-)
+                    )
 ELSEIF (UNIX)
 target_link_libraries(RTCPilot rt dl z m bz2 iconv 
                     ${PREFIX_DIR}/lib/libopus.a 
                     ${PREFIX_DIR}/lib/libx264.a 
                     pthread ssl crypto srtp2 uv yaml-cpp 
-                    avcodec avformat avutil swscale avfilter avdevice swresample
-                    sherpa-onnx-cxx-api)
+                    )
 ENDIF ()
 
 # On macOS, set RPATH so the built executable can find dylibs in build/output/lib at runtime.

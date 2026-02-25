@@ -6,7 +6,6 @@ set(EXTRA_LIBS "-lm -pthread -ldl")
 
 add_subdirectory(libuv)
 add_subdirectory(yaml-cpp)
-add_subdirectory(sherpa-onnx)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 
@@ -75,77 +74,3 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/libsrtp.tar.gz)
         )
 endif()
 
-# Build nasm assembler
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/nasm-3.01.tar.gz)
-    ExternalProject_Add(nasm
-        URL ${CMAKE_CURRENT_SOURCE_DIR}/nasm-3.01.tar.gz
-        SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/nasm
-        BUILD_IN_SOURCE 1
-        CONFIGURE_COMMAND ./configure --prefix=${PREFIX_DIR}
-        BUILD_COMMAND make -j 4
-        INSTALL_COMMAND make install
-        )
-endif()
-
-# Build libopus
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/opus-1.6.tar.gz)
-    ExternalProject_Add(libopus
-        URL ${CMAKE_CURRENT_SOURCE_DIR}/opus-1.6.tar.gz
-        SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/libopus
-        BUILD_IN_SOURCE 1
-        CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env
-            CFLAGS=${EXTRA_CFLAGS}
-            LDFLAGS=${EXTRA_LDFLAGS}
-            ./configure --prefix=${PREFIX_DIR} --libdir=${PREFIX_DIR}/lib --disable-shared
-        BUILD_COMMAND make -j 4
-        INSTALL_COMMAND make install
-        )
-endif()
-
-# Build x264
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/x264-master.tar.bz2)
-    ExternalProject_Add(x264
-        URL ${CMAKE_CURRENT_SOURCE_DIR}/x264-master.tar.bz2
-        SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/x264
-        BUILD_IN_SOURCE 1
-        DEPENDS nasm
-        CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env
-            PATH=${PREFIX_DIR}/bin:$ENV{PATH}
-            CFLAGS=${EXTRA_CFLAGS}
-            LDFLAGS=${EXTRA_LDFLAGS}
-            ./configure --prefix=${PREFIX_DIR} --libdir=${PREFIX_DIR}/lib --enable-static --disable-shared
-        BUILD_COMMAND make -j 4
-        INSTALL_COMMAND make install
-        )
-endif()
-
-# Build libffmpeg (depends on x264, libopus, and nasm)
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/libffmpeg.tar.gz OR EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ffmpeg.tar.gz)
-    set(FFMPEG_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/libffmpeg.tar.gz)
-    if(NOT EXISTS ${FFMPEG_SOURCE})
-        set(FFMPEG_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/ffmpeg.tar.gz)
-    endif()
-    
-    ExternalProject_Add(libffmpeg
-        URL ${FFMPEG_SOURCE}
-        SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/libffmpeg
-        BUILD_IN_SOURCE 1
-        DEPENDS nasm x264 libopus
-        CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env
-            PATH=${PREFIX_DIR}/bin:$ENV{PATH}
-            PKG_CONFIG_PATH=${PREFIX_DIR}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}
-            CFLAGS=-I${PREFIX_DIR}/include
-            LDFLAGS=-L${PREFIX_DIR}/lib
-            ./configure 
-            --prefix=${PREFIX_DIR}
-            --libdir=${PREFIX_DIR}/lib
-            --enable-static
-            --disable-shared
-            --enable-gpl
-            --enable-libx264
-            --enable-libopus
-            --disable-programs
-        BUILD_COMMAND make -j 4
-        INSTALL_COMMAND make install
-        )
-endif()
