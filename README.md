@@ -19,6 +19,9 @@ RTCPilot is an open-source WebRTC SFU (Selective Forwarding Unit) implemented in
 ## WebRTC JS client
 - Open-source browser demo client: [https://github.com/runner365/webrtc_js_client](https://github.com/runner365/webrtc_js_client)
 
+
+For more details, see the `voice_agent` section in the configuration files: [config_guide.md](config_guide.md) (Chinese) and [config_guide_en.md](config_guide_en.md) (English).
+
 ## Signaling (WebSocket / protoo)
 - RTCPilot uses a JSON-over-WebSocket signaling protocol (protoo-style). Main message types include:
 	- `join`: client joins a room and receives current users and their `pushers` (media streams).
@@ -61,6 +64,23 @@ make -j 2
 - It registers SFU nodes and forwards SFU information between services to enable clustering and discovery.
 - See `pilot_center/requirements.txt` and `pilot_center/pilot_center.py` for quick startup instructions.
 
+## Voice Agent integration (`voice_agent`)
+RTCPilot SFU supports integrating a voice agent (`voice_agent`) to handle voice interactions with AI large language models.
+
+**Voice Agent** is an advanced "real-time voice conversation AI" agent. The open-source repository for voice_agent service: [https://github.com/runner365/VoiceAgent](https://github.com/runner365/VoiceAgent)
+
+Steps to integrate VoiceAgent:
+1. Deploy the VoiceAgent service and ensure it is running properly.
+2. Enable the voice agent functionality in the RTCPilot configuration file (`enable: true`).
+3. Configure the VoiceAgent service IP address, port, and registration path prefix (`agent_ip`, `agent_port`, `subpath`).
+```yaml
+voice_agent:
+  enable: true
+  agent_ip: "192.168.1.221"
+  agent_port: 5555
+  subpath: "/voiceagent"
+```
+
 ## Configuration
 - The project includes YAML-based configuration files (for example `RTCPilot/config.yaml`).
 - Adjust network, logging and SFU parameters in the config files before running.
@@ -70,9 +90,3 @@ make -j 2
 - C++ compiler with C++17 support or newer.
 - CMake 3.10+ recommended for cross-platform builds.
 - Platform-specific native dependencies (OpenSSL, libsrtp, libuv, yaml-cpp). See the `3rdparty` and `win_3rdparty` directories.
-
-## Contributing
-- Contributions and bug reports are welcome. Please open issues or pull requests describing the change.
-
-## License
-- See the `LICENSE` file in the repository for the project license.

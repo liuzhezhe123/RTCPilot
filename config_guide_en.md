@@ -41,11 +41,10 @@ When enabled, the SFU registers to `pilot_center` for discovery and information 
 - `relay_udp_start` / `relay_udp_end`: UDP port range used by the relay for forwarding.
 - `send_discard_percent` / `recv_discard_percent`: Packet drop percentages for relay send/receive (for testing).
 
-## Recommendations
-- Restart the SFU after changing configuration files.
-- Use `info` or `warn` for `log_level` in production, and keep console logging disabled if logs are handled by a file or external aggregator.
-- Protect the private key (`key_path`) with proper file permissions.
-- When deploying behind NAT, set `candidate_ip` to the public/mapped IP and `listen_ip` to the local bind address.
-- Use packet discard fields only in controlled test environments to avoid affecting production users.
+## Voice Agent (`voice_agent`)
+- `enable`: Enable voice agent functionality (`true`/`false`).
+- `agent_ip`: IP address the VoiceAgent service binds to.
+- `agent_port`: Port number for VoiceAgent service.
+- `subpath`: Path prefix for VoiceAgent service registration (e.g. `/voiceagent`).
 
-If you need example deployment configurations (production, NAT, or `pilot_center` startup steps), tell me which scenario and I will provide a sample.
+The open source repository for voice_agent service: [https://github.com/runner365/VoiceAgent](https://github.com/runner365/VoiceAgent)

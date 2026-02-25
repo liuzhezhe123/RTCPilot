@@ -40,8 +40,10 @@
 - `relay_udp_start` / `relay_udp_end`: 中继使用的 UDP 端口范围（转发时分配端口区间）。
 - `send_discard_percent` / `recv_discard_percent`: 中继发送/接收的丢包注入百分比（用于测试）。
 
-## 常见建议
-- 修改配置后需重启服务以使更改生效。
-- 妥善保管私钥文件（`key_path`），设置合适文件权限，避免泄露。
-- 若服务位于 NAT/私有网络，正确设置 `candidates` 中的 `candidate_ip` 与 `listen_ip` 以保证对端可连通。
-- 使用 `*_discard_percent` 字段进行网络丢包容错测试，但测试时请在受控环境中进行，避免影响真实用户。
+## 语音代理（`voice_agent`）
+- `enable`: 是否启用语音代理功能（`true`/`false`）。
+- `agent_ip`: VoiceAgent服务绑定的监听 IP。
+- `agent_port`: VoiceAgent服务监听端口。
+- `subpath`: VoiceAgent服务注册路径前缀（例如 `/voiceagent`）。
+
+voice_agent服务的开源地址: [https://github.com/runner365/VoiceAgent](https://github.com/runner365/VoiceAgent)

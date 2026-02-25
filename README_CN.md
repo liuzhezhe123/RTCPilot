@@ -51,6 +51,25 @@ make -j 2
 - 该服务负责 SFU 节点的注册，并在服务间转发 SFU 信息，以支持集群发现与调度。
 - 请参考 `pilot_center/requirements.txt` 和 `pilot_center/pilot_center.py` 获取快速启动说明。
 
+## RTCPilot接入语音代理（`voice_agent`）
+RTCPilot SFU支持接入语音代理（`voice_agent`），用于处理与AI大模型的语音交互。
+
+**Voice Agent** 是一个先进的「实时语音对话 AI」智能体。voice_agent服务的开源地址: [https://github.com/runner365/VoiceAgent](https://github.com/runner365/VoiceAgent)
+
+接入VoiceAgent的步骤如下：
+1. 部署VoiceAgent服务，确保其正常运行。
+2. 在RTCPilot配置文件中启用语音代理功能（`enable: true`）。
+3. 配置VoiceAgent服务的IP地址、端口和注册路径前缀（`agent_ip`、`agent_port`、`subpath`）。
+```yaml
+voice_agent:
+  enable: true
+  agent_ip: "192.168.1.221"
+  agent_port: 5555
+  subpath: "/voiceagent"
+```
+
+详细见配置文件 `config_guide.md`（中文）和 `config_guide_en.md`（英文）中`voice_agent`部分。
+
 ## 配置
 - 项目使用 YAML 文件进行配置（例如 `RTCPilot/config.yaml`）。
 - 在运行前请根据网络、日志和 SFU 参数需求调整配置文件。
@@ -61,13 +80,5 @@ make -j 2
 - 推荐使用 CMake 3.10 及以上进行跨平台构建。
 - 平台相关的本地依赖：OpenSSL、libsrtp、libuv、yaml-cpp 等。详见 `3rdparty` 和 `win_3rdparty` 目录。
 
-## 贡献
-- 欢迎贡献与问题反馈。请通过 issue 或 pull request 提交变更说明。
 
-## 许可
-- 有关许可信息请参阅仓库根目录的 `LICENSE` 文件。
-
-## 联系方式
-- 如需了解架构或集群管理相关问题，请查看 `pilot_center` 目录或提交 issue。
-中文: [English](README.md)
 
