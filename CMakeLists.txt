@@ -243,14 +243,10 @@ add_executable(RTCPilot
 add_dependencies(RTCPilot openssl uv srtp2-ext yaml-cpp)
 IF (APPLE)
 target_link_libraries(RTCPilot dl z bz2 iconv 
-                    ${PREFIX_DIR}/lib/libopus.a 
-                    ${PREFIX_DIR}/lib/libx264.a 
                     ssl crypto srtp2 uv yaml-cpp 
                     )
 ELSEIF (UNIX)
 target_link_libraries(RTCPilot rt dl z m bz2 iconv 
-                    ${PREFIX_DIR}/lib/libopus.a 
-                    ${PREFIX_DIR}/lib/libx264.a 
                     pthread ssl crypto srtp2 uv yaml-cpp 
                     )
 ENDIF ()
@@ -320,7 +316,7 @@ add_executable(ws_protoo_client_test
     ${PROJECT_SOURCE_DIR}/src/utils/byte_crypto.cpp
     ${PROJECT_SOURCE_DIR}/src/utils/base64.cpp
 )
-add_dependencies(ws_protoo_client_test uv)
+add_dependencies(ws_protoo_client_test openssl uv)
 
 # Include project headers
 target_include_directories(ws_protoo_client_test PRIVATE
