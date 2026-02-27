@@ -71,8 +71,12 @@ void VoiceAgent::OnJitterBufferRtpPacket(std::vector<RtpPacket*> rtp_packets, bo
     }
     
     for (RtpPacket* pkt : rtp_packets) {
-        // send rtp packet to voice agent server
-        SendAudio2ProtooServer((uint8_t*)pkt->GetPayload(), pkt->GetPayloadLength(), "opus");
+        try {
+            // send rtp packet to voice agent server
+            SendAudio2ProtooServer((uint8_t*)pkt->GetPayload(), pkt->GetPayloadLength(), "opus");
+        } catch (const std::exception& e) {
+            LogErrorf(logger_, "VoiceAgent SendAudio2ProtooServer error: %s", e.what());
+        }
         delete pkt;
     }
 }
@@ -101,8 +105,8 @@ void VoiceAgent::SendHeartbeatToProtooServer(int64_t now_ms) {
     heartbeat_json["index"] = voice_data_index_++;
     heartbeat_json["roomId"] = room_id_;
     heartbeat_json["userId"] = user_id_;
-    heartbeat_json["type"] = "heartbeat";
-    ws_protoo_client_ptr_->SendNotification("heartbeat", heartbeat_json.dump());
+    heartbeat_json["type"] = "sfuheartbeat";
+    ws_protoo_client_ptr_->SendNotification("sfuheartbeat", heartbeat_json.dump());
 }
 
 void VoiceAgent::SendAudio2ProtooServer(uint8_t* data, size_t data_len, const std::string& codec) {
@@ -112,7 +116,11 @@ void VoiceAgent::SendAudio2ProtooServer(uint8_t* data, size_t data_len, const st
     std::string base64_data = Base64Encode(data, data_len);
     json voice_json;
 
-    LogDebugf(logger_, "audio data len:%zu, base64 len:%zu, codec:%s", data_len, base64_data.size(), codec.c_str());
+    if (dbg_count_++ % 100 == 0) {
+        LogInfof(logger_, "VoiceAgent SendAudio2ProtooServer, audio data len:%zu, base64 len:%zu, codec:%s, room_id:%s, user_id:%s", 
+            data_len, base64_data.size(), codec.c_str(), room_id_.c_str(), user_id_.c_str());
+    }
+    
     voice_json["index"] = voice_data_index_++;
     voice_json["type"] = "input_audio_buffer.append";
     voice_json["roomId"] = room_id_;

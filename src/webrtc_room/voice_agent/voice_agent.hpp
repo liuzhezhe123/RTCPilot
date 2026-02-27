@@ -63,6 +63,7 @@ private:
     int64_t last_try_connect_ms_ = 0;
     int64_t last_heartbeat_ms_ = 0;
     int64_t voice_data_index_ = 0;
+    int64_t dbg_count_ = 0;
 
 private:
     bool closed_ = false;
